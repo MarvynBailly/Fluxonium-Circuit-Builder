@@ -1,0 +1,1721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Building a Quantum Circuit Editor — From Scratch</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* Dark — "Tech Innovation" (matches app) */
+    :root {
+      --bg: #2d2d30;
+      --bg-card: #37373d;
+      --bg-code: #222226;
+      --border: #45454d;
+      --text: #ffffff;
+      --text-dim: #d4dae4;
+      --accent-blue: #2b80ff;
+      --accent-green: #33ffff;
+      --accent-amber: #f5a623;
+      --accent-red: #ff4a6e;
+      --accent-purple: #a78bfa;
+      --node-fill: #173166;
+      --grid-dot: #45454d;
+    }
+
+    /* Light — "Modern Minimalist" (matches app) */
+    :root.light {
+      --bg: #e6e8ec;
+      --bg-card: #edeff2;
+      --bg-code: #d7dae0;
+      --border: #aeb4bd;
+      --text: #36454f;
+      --text-dim: #627180;
+      --accent-blue: #36454f;
+      --accent-green: #4a7c59;
+      --accent-amber: #b8860b;
+      --accent-red: #8b3a3a;
+      --accent-purple: #7c3aed;
+      --node-fill: #d4d8de;
+      --grid-dot: #aeb4bd;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      padding: 0;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    /* ── Hero ── */
+    .hero {
+      text-align: center;
+      padding: 80px 24px 60px;
+      background: linear-gradient(180deg, #37373d 0%, var(--bg) 100%);
+      border-bottom: 1px solid var(--border);
+      transition: background 0.3s;
+    }
+    :root.light .hero { background: linear-gradient(180deg, #d7dae0 0%, var(--bg) 100%); }
+    .hero h1 {
+      font-size: clamp(1.8rem, 4vw, 2.8rem);
+      font-weight: 700;
+      margin-bottom: 16px;
+      background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero .subtitle {
+      font-size: 1.1rem;
+      color: var(--text-dim);
+      max-width: 620px;
+      margin: 0 auto 24px;
+    }
+    .hero .meta {
+      font-size: 0.85rem;
+      color: var(--text-dim);
+    }
+    .tech-badges {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 20px;
+    }
+    .badge {
+      padding: 4px 14px;
+      border-radius: 100px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      transition: background 0.3s, border-color 0.3s;
+    }
+    .badge.react { color: #61dafb; border-color: #61dafb40; }
+    .badge.vite  { color: #a78bfa; border-color: #a78bfa40; }
+    .badge.svg   { color: var(--accent-amber); border-color: #f59e0b40; }
+    .badge.katex { color: var(--accent-green); border-color: #10b98140; }
+
+    /* ── Layout ── */
+    .container {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* ── Table of Contents ── */
+    .toc {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px 32px;
+      margin: 48px auto;
+      max-width: 520px;
+      transition: background 0.3s, border-color 0.3s;
+    }
+    .toc h2 {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-dim);
+      margin-bottom: 16px;
+    }
+    .toc ol {
+      list-style: none;
+      counter-reset: toc;
+    }
+    .toc li {
+      counter-increment: toc;
+      margin-bottom: 8px;
+    }
+    .toc li::before {
+      content: counter(toc, decimal-leading-zero) ".";
+      color: var(--accent-blue);
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+      margin-right: 10px;
+      font-size: 0.85rem;
+    }
+    .toc a {
+      color: var(--text);
+      text-decoration: none;
+      font-size: 0.95rem;
+    }
+    .toc a:hover { color: var(--accent-blue); }
+
+    /* ── Sections ── */
+    .step {
+      margin: 56px 0;
+      border-left: 2px solid var(--border);
+      padding-left: 28px;
+      position: relative;
+      transition: border-color 0.3s;
+    }
+    .step::before {
+      content: attr(data-step);
+      position: absolute;
+      left: -18px;
+      top: 0;
+      width: 34px;
+      height: 34px;
+      background: var(--accent-blue);
+      color: #fff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .step h2 {
+      font-size: 1.4rem;
+      margin-bottom: 12px;
+    }
+    .step p, .step ul, .step ol {
+      margin-bottom: 14px;
+      color: var(--text-dim);
+    }
+    .step ul, .step ol {
+      padding-left: 20px;
+    }
+    .step ul li, .step ol li {
+      margin-bottom: 6px;
+    }
+    .step strong { color: var(--text); }
+
+    /* ── Code blocks ── */
+    pre {
+      background: var(--bg-code);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px 20px;
+      overflow-x: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      line-height: 1.65;
+      margin: 14px 0 18px;
+      color: #c9d1d9;
+      transition: background 0.3s, border-color 0.3s;
+    }
+    :root.light pre { color: #24292f; }
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85em;
+    }
+    p code, li code {
+      background: var(--bg-code);
+      padding: 2px 7px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      font-size: 0.82em;
+      transition: background 0.3s, border-color 0.3s;
+    }
+    .filename {
+      display: inline-block;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-bottom: none;
+      border-radius: 6px 6px 0 0;
+      padding: 4px 14px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      margin-bottom: -1px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ── Collapsible ── */
+    details {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin: 14px 0;
+      overflow: hidden;
+      transition: background 0.3s, border-color 0.3s;
+    }
+    details summary {
+      padding: 14px 18px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.9rem;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: background 0.15s;
+    }
+    details summary:hover { background: #ffffff08; }
+    :root.light details summary:hover { background: #00000008; }
+    details summary::before {
+      content: "\25B6";
+      font-size: 0.65rem;
+      transition: transform 0.2s;
+      color: var(--accent-blue);
+    }
+    details[open] summary::before { transform: rotate(90deg); }
+    details .detail-body {
+      padding: 0 18px 18px;
+    }
+    details .detail-body p {
+      color: var(--text-dim);
+      margin-bottom: 10px;
+    }
+
+    /* ── File tree ── */
+    .file-tree {
+      background: var(--bg-code);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px 24px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      line-height: 1.8;
+      margin: 14px 0;
+      color: var(--text-dim);
+      transition: background 0.3s, border-color 0.3s;
+    }
+    .file-tree .dir { color: var(--accent-blue); }
+    .file-tree .file { color: #c9d1d9; }
+    :root.light .file-tree .file { color: #24292f; }
+    .file-tree .comment { color: #6e7681; font-style: italic; }
+
+    /* ── Callout boxes ── */
+    .callout {
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin: 16px 0;
+      font-size: 0.9rem;
+    }
+    .callout.tip {
+      background: #10b98115;
+      border-left: 3px solid var(--accent-green);
+    }
+    .callout.note {
+      background: #3b82f615;
+      border-left: 3px solid var(--accent-blue);
+    }
+    .callout.warn {
+      background: #f59e0b15;
+      border-left: 3px solid var(--accent-amber);
+    }
+    .callout.future {
+      background: #a78bfa15;
+      border-left: 3px solid var(--accent-purple);
+    }
+    .callout .callout-title {
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: var(--text);
+    }
+
+    /* ── Diagram boxes ── */
+    .diagram {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      margin: 18px 0;
+      text-align: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      line-height: 2;
+      color: var(--text-dim);
+      overflow-x: auto;
+      transition: background 0.3s, border-color 0.3s;
+    }
+    .diagram .arrow { color: var(--accent-blue); }
+    .diagram .label { color: var(--accent-amber); }
+    .diagram .node  { color: var(--accent-green); }
+
+    /* ── Interactive demos ── */
+    .demo-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin: 18px 0;
+      overflow: hidden;
+      transition: background 0.3s, border-color 0.3s;
+    }
+    .demo-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .demo-header .demo-tag {
+      background: var(--accent-blue);
+      color: #fff;
+      padding: 2px 10px;
+      border-radius: 100px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .demo-body {
+      padding: 20px;
+    }
+    .demo-body svg {
+      display: block;
+      width: 100%;
+      border-radius: 6px;
+      cursor: crosshair;
+    }
+    .demo-toolbar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .demo-btn {
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: all 0.15s;
+      user-select: none;
+    }
+    .demo-btn:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
+    .demo-btn.active {
+      background: var(--accent-blue);
+      border-color: var(--accent-blue);
+      color: #fff;
+    }
+    .demo-btn.green.active { background: var(--accent-green); border-color: var(--accent-green); }
+    .demo-btn.amber.active { background: var(--accent-amber); border-color: var(--accent-amber); }
+    .demo-btn.red { border-color: var(--accent-red); color: var(--accent-red); }
+    .demo-btn.red:hover { background: var(--accent-red); color: #fff; }
+    .demo-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .demo-status {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      margin-top: 10px;
+      min-height: 1.4em;
+    }
+    .demo-matrix {
+      margin-top: 14px;
+    }
+    .demo-matrix table {
+      border-collapse: collapse;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+    }
+    .demo-matrix th, .demo-matrix td {
+      padding: 6px 12px;
+      border: 1px solid var(--border);
+      text-align: center;
+      transition: background 0.15s;
+    }
+    .demo-matrix th {
+      background: var(--bg);
+      color: var(--accent-blue);
+      font-weight: 600;
+    }
+    .demo-matrix td.nonzero {
+      color: var(--accent-amber);
+      font-weight: 600;
+    }
+    .demo-matrix td.zero {
+      color: var(--border);
+    }
+
+    /* ── Symbol showcase ── */
+    .symbol-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin: 14px 0;
+    }
+    .symbol-card {
+      background: var(--bg);
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      padding: 20px 16px 14px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .symbol-card:hover, .symbol-card.active {
+      border-color: var(--accent-blue);
+      transform: translateY(-2px);
+    }
+    .symbol-card svg { display: block; margin: 0 auto 10px; }
+    .symbol-card .symbol-name {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+    .symbol-card .symbol-unit {
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      margin-top: 2px;
+    }
+
+    /* ── Undo demo ── */
+    .undo-canvas {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      min-height: 48px;
+      padding: 12px;
+      background: var(--bg);
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      align-items: center;
+    }
+    .undo-dot {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #fff;
+      font-family: 'JetBrains Mono', monospace;
+      animation: popIn 0.2s ease-out;
+    }
+    @keyframes popIn {
+      from { transform: scale(0); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    .undo-history {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      margin-top: 10px;
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .undo-history .snap {
+      padding: 2px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+    }
+    .undo-history .snap.current {
+      border-color: var(--accent-blue);
+      color: var(--accent-blue);
+      font-weight: 600;
+    }
+    .undo-history .snap.future {
+      opacity: 0.35;
+    }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      padding: 48px 24px;
+      margin-top: 64px;
+      border-top: 1px solid var(--border);
+      color: var(--text-dim);
+      font-size: 0.85rem;
+      transition: border-color 0.3s;
+    }
+    footer a { color: var(--accent-blue); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    /* ── Responsive ── */
+    @media (max-width: 640px) {
+      .step { padding-left: 20px; }
+      pre { font-size: 0.75rem; padding: 14px; }
+      .symbol-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ════════════════════ HERO ════════════════════ -->
+<header class="hero">
+  <h1>Building a Quantum Circuit Editor from Scratch</h1>
+  <p class="subtitle">
+    How we built an interactive superconducting circuit designer with pure React, SVG, and no diagram libraries.
+  </p>
+  <p class="meta">Marvyn B &middot; April 2026</p>
+  <div class="tech-badges">
+    <span class="badge react">React 18</span>
+    <span class="badge vite">Vite 5</span>
+    <span class="badge svg">SVG Canvas</span>
+    <span class="badge katex">KaTeX</span>
+  </div>
+</header>
+
+<main class="container">
+
+<!-- ════════════════════ TOC ════════════════════ -->
+<nav class="toc">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#step-1">Scaffolding with Vite</a></li>
+    <li><a href="#step-2">Project structure</a></li>
+    <li><a href="#step-3">The HTML entry point</a></li>
+    <li><a href="#step-4">CSS variables and theming</a></li>
+    <li><a href="#step-5">Wiring up React</a></li>
+    <li><a href="#step-6">The SVG canvas</a></li>
+    <li><a href="#step-7">Nodes &mdash; placing and dragging</a></li>
+    <li><a href="#step-8">Edges &mdash; circuit element wiring</a></li>
+    <li><a href="#step-9">Drawing circuit symbols in SVG</a></li>
+    <li><a href="#step-10">Pan, zoom, and view fitting</a></li>
+    <li><a href="#step-11">LaTeX labels with KaTeX</a></li>
+    <li><a href="#step-12">The properties panel</a></li>
+    <li><a href="#step-13">The analysis panel &amp; adjacency matrix</a></li>
+    <li><a href="#step-14">Undo/redo</a></li>
+    <li><a href="#step-15">Export, presets, and what's next</a></li>
+  </ol>
+</nav>
+
+<!-- ════════════════════ STEP 1 ════════════════════ -->
+<section class="step" data-step="1" id="step-1">
+  <h2>Scaffolding with Vite</h2>
+  <p>
+    We started with a clean <strong>Vite + React</strong> scaffold. Vite gives us instant hot module replacement (HMR) during development and optimized production builds, with almost zero configuration.
+  </p>
+
+  <span class="filename">Terminal</span>
+  <pre>npm create vite@latest fluxonium-builder -- --template react
+cd fluxonium-builder
+npm install
+npm install katex</pre>
+
+  <p>
+    The only non-React dependency is <strong>KaTeX</strong> for rendering LaTeX math. No diagram library, no state management library, no CSS framework. The whole app is just React + SVG.
+  </p>
+
+  <details>
+    <summary>vite.config.js</summary>
+    <div class="detail-body">
+      <p>Minimal config &mdash; just the React plugin and a custom dev server port.</p>
+      <pre>import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 3000,
+    open: true,
+  },
+  build: {
+    sourcemap: true,
+  },
+})</pre>
+    </div>
+  </details>
+
+  <details>
+    <summary>package.json scripts</summary>
+    <div class="detail-body">
+      <pre>"scripts": {
+  "dev":     "vite",          // HMR dev server on :3000
+  "build":   "vite build",    // production bundle &rarr; dist/
+  "preview": "vite preview",  // serve the production build locally
+  "lint":    "eslint src --ext .js,.jsx"
+}</pre>
+    </div>
+  </details>
+</section>
+
+<!-- ════════════════════ STEP 2 ════════════════════ -->
+<section class="step" data-step="2" id="step-2">
+  <h2>Project structure</h2>
+  <p>
+    We organized the source into three domains: <strong>components</strong> (React UI), <strong>circuit</strong> (element types, presets, export), and <strong>physics</strong> (scaffolded for future Hamiltonian extraction). This separation means the physics engine can be developed and tested independently of the UI.
+  </p>
+
+  <div class="file-tree">
+    <span class="dir">src/</span><br>
+    &nbsp;&nbsp;<span class="file">main.jsx</span> <span class="comment">&larr; React entry point</span><br>
+    &nbsp;&nbsp;<span class="file">App.jsx</span> <span class="comment">&larr; Root component (~570 lines, all the action)</span><br>
+    &nbsp;&nbsp;<span class="file">index.css</span> <span class="comment">&larr; CSS variables, dark/light theme</span><br>
+    &nbsp;&nbsp;<span class="dir">components/</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="file">CircuitSymbol.jsx</span> <span class="comment">&larr; SVG capacitor, inductor, JJ</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="file">SvgLatex.jsx</span> <span class="comment">&larr; KaTeX inside SVG</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="file">InlineLatex.jsx</span> <span class="comment">&larr; KaTeX in HTML panels</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="file">PropertiesPanel.jsx</span> <span class="comment">&larr; Edit selected node/edge</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="file">HamiltonianPanel.jsx</span> <span class="comment">&larr; Adjacency matrix display</span><br>
+    &nbsp;&nbsp;<span class="dir">circuit/</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="file">elementTypes.js</span> <span class="comment">&larr; C / L / JJ definitions</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="file">presets.js</span> <span class="comment">&larr; Fluxonium, transmon templates</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="file">exportJSON.js</span> <span class="comment">&larr; Download circuit topology</span><br>
+    &nbsp;&nbsp;<span class="dir">physics/</span> <span class="comment">&larr; future: Hamiltonian extraction engine</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="file">constants.js</span> <span class="comment">&larr; h, e, &phi;&#8320; (SI)</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="file">linalg.js</span> <span class="comment">&larr; Matrix inversion, determinant</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="file">hamiltonian.js</span> <span class="comment">&larr; Adjacency matrix builder (+ planned energy extraction)</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="file">loops.js</span> <span class="comment">&larr; Flux loop detection (for future &phi;_ext support)</span><br>
+  </div>
+
+  <div class="callout tip">
+    <div class="callout-title">Design choice: no diagram library</div>
+    <p>
+      We deliberately avoided libraries like React Flow or D3. Our circuits are small (under 50 nodes), and a bespoke SVG approach gives us full control over rendering, hit-testing, and future physics integration &mdash; all without fighting a library's abstraction.
+    </p>
+  </div>
+</section>
+
+<!-- ════════════════════ STEP 3 ════════════════════ -->
+<section class="step" data-step="3" id="step-3">
+  <h2>The HTML entry point</h2>
+  <p>
+    The entire app loads from a single, minimal HTML file. It preloads a monospace font, sets the dark background so there's no flash of white, and mounts the React root.
+  </p>
+
+  <span class="filename">index.html</span>
+  <pre>&lt;!DOCTYPE html&gt;
+&lt;html lang="en"&gt;
+&lt;head&gt;
+  &lt;meta charset="UTF-8" /&gt;
+  &lt;meta name="viewport" content="width=device-width, initial-scale=1.0" /&gt;
+  &lt;title&gt;Fluxonium Circuit Builder&lt;/title&gt;
+  &lt;link rel="preconnect" href="https://fonts.googleapis.com" /&gt;
+  &lt;link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&amp;display=swap"
+        rel="stylesheet" /&gt;
+&lt;/head&gt;
+&lt;body style="margin:0; background:#0a0e17"&gt;
+  &lt;div id="root"&gt;&lt;/div&gt;
+  &lt;script type="module" src="/src/main.jsx"&gt;&lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;</pre>
+
+  <p>
+    The <code>type="module"</code> attribute is key &mdash; it tells the browser to treat the script as an ES module, which Vite intercepts in dev mode to serve transformed source with HMR.
+  </p>
+</section>
+
+<!-- ════════════════════ STEP 4 ════════════════════ -->
+<section class="step" data-step="4" id="step-4">
+  <h2>CSS variables and theming</h2>
+  <p>
+    Instead of a CSS framework, we defined a set of <strong>CSS custom properties</strong> on <code>:root</code>. Every component references these variables, which means switching between dark and light mode is a single class toggle.
+  </p>
+
+  <span class="filename">src/index.css (abbreviated)</span>
+  <pre>/* ── Dark mode (default) ── */
+:root {
+  --bg-primary:   #0a0e17;
+  --bg-secondary: #0f1729;
+  --bg-panel:     #0c1120;
+  --text-primary: #e2e8f0;
+  --accent-blue:  #3b82f6;
+  --accent-green: #10b981;
+  --accent-amber: #f59e0b;
+}
+
+/* ── Light mode ── */
+:root.light {
+  --bg-primary:   #f8fafc;
+  --bg-secondary: #ffffff;
+  --bg-panel:     #f1f5f9;
+  --text-primary: #0f172a;
+  --accent-blue:  #2563eb;
+  --accent-green: #059669;
+  --accent-amber: #d97706;
+}</pre>
+
+  <p>
+    The toggle itself is one line of JavaScript in <code>App.jsx</code>:
+  </p>
+
+  <pre>useEffect(() => {
+  document.documentElement.classList.toggle('light', theme === 'light')
+}, [theme])</pre>
+
+  <p>
+    That's the entire theme engine. Clicking the toolbar button flips <code>theme</code> between <code>'dark'</code> and <code>'light'</code>, the class changes on <code>&lt;html&gt;</code>, and every <code>var(--...)</code> in the app instantly resolves to its new value. Try it yourself &mdash; this blog page uses the same technique:
+  </p>
+
+  <!-- ── INTERACTIVE: Theme toggle ── -->
+  <div class="demo-container">
+    <div class="demo-header">
+      <span>Try it: theme toggle</span>
+      <span class="demo-tag">Interactive</span>
+    </div>
+    <div class="demo-body" style="text-align:center;">
+      <button class="demo-btn" id="theme-toggle-btn" onclick="
+        document.documentElement.classList.toggle('light');
+        var isLight = document.documentElement.classList.contains('light');
+        this.textContent = isLight ? 'Switch to dark mode' : 'Switch to light mode';
+      ">Switch to light mode</button>
+      <p class="demo-status">This toggles the class on &lt;html&gt; &mdash; every CSS variable on this page updates instantly.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════ STEP 5 ════════════════════ -->
+<section class="step" data-step="5" id="step-5">
+  <h2>Wiring up React</h2>
+  <p>
+    The React entry point is trivially small. It imports KaTeX's CSS, our app styles, and mounts the root component.
+  </p>
+
+  <span class="filename">src/main.jsx</span>
+  <pre>import React from 'react'
+import ReactDOM from 'react-dom/client'
+import 'katex/dist/katex.min.css'
+import './index.css'
+import App from './App'
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  &lt;React.StrictMode&gt;
+    &lt;App /&gt;
+  &lt;/React.StrictMode&gt;
+)</pre>
+
+  <p>
+    <strong>All application state</strong> lives inside <code>App.jsx</code> via <code>useState</code> and <code>useRef</code>. We don't use Redux, Zustand, or any external state manager &mdash; at this scale, lifting state into the root component is simpler and sufficient.
+  </p>
+
+  <details>
+    <summary>Core state at a glance</summary>
+    <div class="detail-body">
+      <pre>// Circuit data
+const [nodes, setNodes] = useState([...])
+const [edges, setEdges] = useState([...])
+
+// Interaction state
+const [selectedTool, setSelectedTool] = useState(null)
+const [connectFrom, setConnectFrom]   = useState(null)
+const [dragging, setDragging]         = useState(null)
+const [selected, setSelected]         = useState(null)
+
+// Canvas transform
+const [pan, setPan]   = useState({ x: 0, y: 0 })
+const [zoom, setZoom] = useState(1)
+
+// Theme
+const [theme, setTheme] = useState('dark')</pre>
+    </div>
+  </details>
+</section>
+
+<!-- ════════════════════ STEP 6 ════════════════════ -->
+<section class="step" data-step="6" id="step-6">
+  <h2>The SVG canvas</h2>
+  <p>
+    The circuit editor is a single <code>&lt;svg&gt;</code> element that fills the left side of the screen. Everything &mdash; nodes, wires, symbols, labels &mdash; is rendered as SVG elements inside a transform group.
+  </p>
+
+  <pre>&lt;svg ref={svgRef} width="100%" height="100%"
+     onMouseDown={handleCanvasMouseDown}
+     onMouseMove={handleMouseMove}
+     onMouseUp={handleMouseUp}
+     onWheel={handleWheel}&gt;
+
+  &lt;defs&gt;
+    &lt;pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse"&gt;
+      &lt;circle cx="15" cy="15" r="0.8" fill="var(--grid-dot)" /&gt;
+    &lt;/pattern&gt;
+  &lt;/defs&gt;
+
+  &lt;!-- Background grid (fixed, not affected by pan/zoom) --&gt;
+  &lt;rect width="100%" height="100%" fill="var(--bg-secondary)" /&gt;
+  &lt;rect width="100%" height="100%" fill="url(#grid)" /&gt;
+
+  &lt;!-- All circuit elements live in this transformed group --&gt;
+  &lt;g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}&gt;
+    {/* edges drawn first (below nodes) */}
+    {edges.map(edge =&gt; ...)}
+
+    {/* nodes drawn on top */}
+    {nodes.map(node =&gt; ...)}
+  &lt;/g&gt;
+&lt;/svg&gt;</pre>
+
+  <div class="callout note">
+    <div class="callout-title">Why SVG over Canvas API?</div>
+    <p>
+      Every SVG element is a DOM node, which gives us <strong>free hit-testing</strong> (click events on individual circles and paths), easy styling via CSS variables, and simple integration with React's declarative model. For a circuit with tens of nodes, performance is a non-issue.
+    </p>
+  </div>
+</section>
+
+<!-- ════════════════════ STEP 7 ════════════════════ -->
+<section class="step" data-step="7" id="step-7">
+  <h2>Nodes &mdash; placing and dragging</h2>
+  <p>
+    Each node is an object with an <code>id</code>, <code>x</code>/<code>y</code> position, <code>label</code>, and a boolean <code>isGround</code> flag. When the "Node" tool is active, clicking the canvas creates one:
+  </p>
+
+  <pre>// On canvas click with node tool selected:
+const pt = screenToSvg(e.clientX, e.clientY)
+setNodes(prev => [...prev, {
+  id: nextNodeId.current++,
+  x: pt.x,
+  y: pt.y,
+  label: `\\phi_{${id}}`,   // LaTeX label
+  isGround: false,
+}])</pre>
+
+  <p>
+    The <code>screenToSvg</code> helper converts pixel coordinates to SVG-space by accounting for the current pan and zoom:
+  </p>
+
+  <pre>function screenToSvg(clientX, clientY) {
+  const rect = svgRef.current.getBoundingClientRect()
+  return {
+    x: (clientX - rect.left - pan.x) / zoom,
+    y: (clientY - rect.top  - pan.y) / zoom,
+  }
+}</pre>
+
+  <p>
+    <strong>Dragging</strong> is handled with three mouse events. On <code>mousedown</code> on a node, we set <code>dragging = node.id</code>. On <code>mousemove</code>, we update that node's position. On <code>mouseup</code>, we clear the drag state. Try it below:
+  </p>
+
+  <!-- ── INTERACTIVE: Node placement ── -->
+  <div class="demo-container">
+    <div class="demo-header">
+      <span>Try it: click to place nodes, drag to move them</span>
+      <span class="demo-tag">Interactive</span>
+    </div>
+    <div class="demo-body">
+      <div class="demo-toolbar">
+        <button class="demo-btn active" id="node-demo-add">Click to add nodes</button>
+        <button class="demo-btn red" onclick="
+          document.querySelectorAll('#node-demo-svg .demo-node').forEach(n => n.remove());
+          document.getElementById('node-demo-status').textContent = 'Canvas cleared. Click to place nodes.';
+          window._nodeDemoCount = 0;
+        ">Clear</button>
+      </div>
+      <svg id="node-demo-svg" viewBox="0 0 770 200" height="200"
+           style="background: var(--bg); border: 1px solid var(--border);">
+        <defs>
+          <pattern id="demo-grid-1" width="30" height="30" patternUnits="userSpaceOnUse">
+            <circle cx="15" cy="15" r="0.6" fill="var(--grid-dot)"/>
+          </pattern>
+        </defs>
+        <rect width="770" height="200" fill="url(#demo-grid-1)"/>
+      </svg>
+      <p class="demo-status" id="node-demo-status">Click anywhere on the grid above to place a node.</p>
+    </div>
+  </div>
+
+  <details>
+    <summary>How nodes render in SVG</summary>
+    <div class="detail-body">
+      <p>Each node is a group containing a circle, its label, and (for ground nodes) a three-line ground symbol:</p>
+      <pre>&lt;g key={node.id}&gt;
+  {/* Selection ring (shown when selected) */}
+  {selected?.id === node.id &&
+    &lt;circle cx={x} cy={y} r={22}
+      stroke="var(--accent-blue)" strokeDasharray="4 3" /&gt;}
+
+  {/* Node circle */}
+  &lt;circle cx={x} cy={y} r={16}
+    fill={node.isGround ? 'var(--ground-fill)' : 'var(--node-fill)'}
+    stroke={node.isGround ? 'var(--ground-stroke)' : 'var(--accent-blue)'}
+    strokeWidth={2} /&gt;
+
+  {/* Label (rendered with SvgLatex for LaTeX support) */}
+  &lt;SvgLatex x={x} y={y - 26} text={node.label} /&gt;
+
+  {/* Ground symbol */}
+  {node.isGround && &lt;GroundSymbol x={x} y={y + 16} /&gt;}
+&lt;/g&gt;</pre>
+    </div>
+  </details>
+</section>
+
+<!-- ════════════════════ STEP 8 ════════════════════ -->
+<section class="step" data-step="8" id="step-8">
+  <h2>Edges &mdash; circuit element wiring</h2>
+  <p>
+    Connecting two nodes with a circuit element (capacitor, inductor, or Josephson junction) is a <strong>two-click workflow</strong>:
+  </p>
+  <ol style="padding-left: 20px; margin-bottom: 14px;">
+    <li>Select the element tool (C, L, or JJ) from the toolbar.</li>
+    <li>Click the <strong>source</strong> node &mdash; it highlights with a pulsing ring and the toolbar shows "Click target node..."</li>
+    <li>Click the <strong>target</strong> node &mdash; an edge is created between them.</li>
+  </ol>
+
+  <pre>// On second click (target node):
+setEdges(prev => [...prev, {
+  id:    nextEdgeId.current++,
+  from:  connectFrom,
+  to:    node.id,
+  type:  selectedTool,               // 'C', 'L', or 'JJ'
+  value: ELEMENT_TYPES[selectedTool].defaultValue,
+}])
+setConnectFrom(null)  // reset for next connection</pre>
+
+  <p>
+    Each edge stores a <code>type</code> and a <code>value</code> (capacitance in fF, inductance in nH, or Josephson energy in GHz). The edge is rendered as a line between the two node positions, with the circuit symbol drawn at the midpoint.
+  </p>
+
+  <details>
+    <summary>Edge click hit area trick</summary>
+    <div class="detail-body">
+      <p>
+        Thin lines are hard to click. We render an <strong>invisible fat line</strong> (14px stroke, fully transparent) on top of each edge to catch clicks, while the visible line stays at 2px:
+      </p>
+      <pre>&lt;!-- Invisible wide hit area --&gt;
+&lt;line x1={x1} y1={y1} x2={x2} y2={y2}
+  stroke="transparent" strokeWidth={14}
+  style={{ cursor: 'pointer' }}
+  onClick={() => setSelected(edge)} /&gt;
+
+&lt;!-- Visible wire --&gt;
+&lt;line x1={x1} y1={y1} x2={x2} y2={y2}
+  stroke="var(--wire-color)" strokeWidth={2} /&gt;</pre>
+    </div>
+  </details>
+</section>
+
+<!-- ════════════════════ STEP 9 ════════════════════ -->
+<section class="step" data-step="9" id="step-9">
+  <h2>Drawing circuit symbols in SVG</h2>
+  <p>
+    <code>CircuitSymbol.jsx</code> renders the schematic symbol for each element type at the midpoint of its edge. Each symbol is hand-drawn with SVG <code>&lt;line&gt;</code> and <code>&lt;path&gt;</code> elements, then rotated to align with the wire direction. Here are the three symbols:
+  </p>
+
+  <!-- ── INTERACTIVE: Symbol showcase ── -->
+  <div class="demo-container">
+    <div class="demo-header">
+      <span>Circuit element symbols (actual SVG)</span>
+      <span class="demo-tag">Interactive</span>
+    </div>
+    <div class="demo-body">
+      <div class="symbol-grid">
+        <!-- Capacitor -->
+        <div class="symbol-card active" onclick="
+          document.querySelectorAll('.symbol-card').forEach(c => c.classList.remove('active'));
+          this.classList.add('active');
+          document.getElementById('symbol-info').innerHTML = '<strong style=&quot;color:#3b82f6&quot;>Capacitor</strong> &mdash; Two parallel plates drawn as vertical lines with a gap. Default: 5 fF. The plates represent charge storage between two superconducting islands.';
+        ">
+          <svg width="120" height="60" viewBox="0 0 120 60">
+            <line x1="10" y1="30" x2="48" y2="30" stroke="#3b82f6" stroke-width="2"/>
+            <line x1="48" y1="12" x2="48" y2="48" stroke="#3b82f6" stroke-width="2.5"/>
+            <line x1="72" y1="12" x2="72" y2="48" stroke="#3b82f6" stroke-width="2.5"/>
+            <line x1="72" y1="30" x2="110" y2="30" stroke="#3b82f6" stroke-width="2"/>
+          </svg>
+          <div class="symbol-name" style="color:#3b82f6">Capacitor (C)</div>
+          <div class="symbol-unit">fF</div>
+        </div>
+        <!-- Inductor -->
+        <div class="symbol-card" onclick="
+          document.querySelectorAll('.symbol-card').forEach(c => c.classList.remove('active'));
+          this.classList.add('active');
+          document.getElementById('symbol-info').innerHTML = '<strong style=&quot;color:#10b981&quot;>Inductor</strong> &mdash; Four Bezier-curve coil arcs between straight leads. Default: 300 nH. Represents the inductive shunt that gives the fluxonium its anharmonicity.';
+        ">
+          <svg width="120" height="60" viewBox="0 0 120 60">
+            <line x1="10" y1="30" x2="28" y2="30" stroke="#10b981" stroke-width="2"/>
+            <path d="M28,30 C32,12 40,12 44,30 C48,12 56,12 60,30 C64,12 72,12 76,30 C80,12 88,12 92,30" fill="none" stroke="#10b981" stroke-width="2"/>
+            <line x1="92" y1="30" x2="110" y2="30" stroke="#10b981" stroke-width="2"/>
+          </svg>
+          <div class="symbol-name" style="color:#10b981">Inductor (L)</div>
+          <div class="symbol-unit">nH</div>
+        </div>
+        <!-- JJ -->
+        <div class="symbol-card" onclick="
+          document.querySelectorAll('.symbol-card').forEach(c => c.classList.remove('active'));
+          this.classList.add('active');
+          document.getElementById('symbol-info').innerHTML = '<strong style=&quot;color:#f59e0b&quot;>Josephson Junction</strong> &mdash; A cross (X) symbol between leads. Default: 8 GHz. The tunnel junction that gives rise to the cos(&phi;) nonlinearity in the Hamiltonian.';
+        ">
+          <svg width="120" height="60" viewBox="0 0 120 60">
+            <line x1="10" y1="30" x2="45" y2="30" stroke="#f59e0b" stroke-width="2"/>
+            <line x1="45" y1="14" x2="75" y2="46" stroke="#f59e0b" stroke-width="2"/>
+            <line x1="45" y1="46" x2="75" y2="14" stroke="#f59e0b" stroke-width="2"/>
+            <line x1="75" y1="30" x2="110" y2="30" stroke="#f59e0b" stroke-width="2"/>
+          </svg>
+          <div class="symbol-name" style="color:#f59e0b">Josephson Junction (JJ)</div>
+          <div class="symbol-unit">GHz</div>
+        </div>
+      </div>
+      <p class="demo-status" id="symbol-info"><strong style="color:#3b82f6">Capacitor</strong> &mdash; Two parallel plates drawn as vertical lines with a gap. Default: 5 fF. The plates represent charge storage between two superconducting islands.</p>
+    </div>
+  </div>
+
+  <p>
+    Each symbol group is wrapped in a <code>transform</code> that translates to the edge midpoint and rotates by <code>atan2(dy, dx)</code> to follow the wire angle:
+  </p>
+  <pre>&lt;g transform={`translate(${mx},${my}) rotate(${angle})`}&gt;
+  {/* symbol paths here */}
+&lt;/g&gt;</pre>
+</section>
+
+<!-- ════════════════════ STEP 10 ════════════════════ -->
+<section class="step" data-step="10" id="step-10">
+  <h2>Pan, zoom, and view fitting</h2>
+  <p>
+    The canvas supports <strong>mouse-wheel zoom</strong> and <strong>click-drag panning</strong>. Both manipulate the <code>pan</code> and <code>zoom</code> state, which feed into the SVG group's <code>transform</code>.
+  </p>
+
+  <details>
+    <summary>Zoom (mouse wheel)</summary>
+    <div class="detail-body">
+      <p>We use a gentle 1.04&times; factor per scroll tick (tuned down from the default 1.1&times; which felt too jumpy). The zoom is anchored to the cursor position so the point under the mouse stays fixed:</p>
+      <pre>function handleWheel(e) {
+  e.preventDefault()
+  const factor = e.deltaY &lt; 0 ? 1.04 : 1 / 1.04
+  const newZoom = clamp(zoom * factor, 0.1, 10)
+
+  // Keep the point under the cursor fixed
+  const rect = svgRef.current.getBoundingClientRect()
+  const mx = e.clientX - rect.left
+  const my = e.clientY - rect.top
+
+  setPan({
+    x: mx - (mx - pan.x) * (newZoom / zoom),
+    y: my - (my - pan.y) * (newZoom / zoom),
+  })
+  setZoom(newZoom)
+}</pre>
+    </div>
+  </details>
+
+  <details>
+    <summary>Pan (middle-click or background drag)</summary>
+    <div class="detail-body">
+      <p>Clicking and dragging the background (not a node) pans the canvas. We track the start position in a ref to avoid re-renders on every pixel of movement:</p>
+      <pre>// On mouse down on canvas background:
+panInfo.current = { startX: e.clientX, startY: e.clientY, panX: pan.x, panY: pan.y }
+
+// On mouse move while panning:
+setPan({
+  x: panInfo.current.panX + (e.clientX - panInfo.current.startX),
+  y: panInfo.current.panY + (e.clientY - panInfo.current.startY),
+})</pre>
+    </div>
+  </details>
+
+  <details>
+    <summary>Fit view</summary>
+    <div class="detail-body">
+      <p>The "Fit" toolbar button computes a bounding box around all nodes and scales/translates to fit them in the viewport with 80px padding:</p>
+      <pre>function resetView() {
+  if (nodes.length === 0) return
+  const xs = nodes.map(n => n.x), ys = nodes.map(n => n.y)
+  const [minX, maxX] = [Math.min(...xs), Math.max(...xs)]
+  const [minY, maxY] = [Math.min(...ys), Math.max(...ys)]
+
+  const pad = 80
+  const w = svgRef.current.clientWidth
+  const h = svgRef.current.clientHeight
+  const scale = Math.min(w / (maxX - minX + pad*2),
+                         h / (maxY - minY + pad*2), 2)
+
+  setZoom(scale)
+  setPan({
+    x: (w - (maxX + minX) * scale) / 2,
+    y: (h - (maxY + minY) * scale) / 2,
+  })
+}</pre>
+    </div>
+  </details>
+</section>
+
+<!-- ════════════════════ STEP 11 ════════════════════ -->
+<section class="step" data-step="11" id="step-11">
+  <h2>LaTeX labels with KaTeX</h2>
+  <p>
+    Node labels like <code>\phi_{1}</code> should render as proper mathematical notation. We use <strong>KaTeX</strong> for this, but embedding LaTeX inside SVG requires a trick.
+  </p>
+
+  <p>
+    SVG doesn't natively support HTML content. The workaround is <code>&lt;foreignObject&gt;</code>, which lets us embed an HTML <code>&lt;div&gt;</code> inside the SVG tree:
+  </p>
+
+  <span class="filename">src/components/SvgLatex.jsx (simplified)</span>
+  <pre>import katex from 'katex'
+
+export default function SvgLatex({ x, y, text }) {
+  const isLatex = /[\\_{^}]/.test(text)
+
+  if (!isLatex) return &lt;text x={x} y={y}&gt;{text}&lt;/text&gt;
+
+  const html = katex.renderToString(text, { throwOnError: false })
+
+  return (
+    &lt;foreignObject x={x - 60} y={y - 16} width={120} height={32}&gt;
+      &lt;div style={{ textAlign: 'center' }}
+           dangerouslySetInnerHTML={{ __html: html }} /&gt;
+    &lt;/foreignObject&gt;
+  )
+}</pre>
+
+  <p>
+    The same approach is used in <code>InlineLatex.jsx</code> for the right-side panel, but there we can render KaTeX directly into a <code>&lt;span&gt;</code> since we're in HTML context.
+  </p>
+
+  <div class="callout warn">
+    <div class="callout-title">Detecting LaTeX</div>
+    <p>
+      We use a simple regex (<code>/[\\_{^}]/</code>) to decide whether a label contains LaTeX syntax. Plain text labels like "GND" fall through to a regular SVG <code>&lt;text&gt;</code> element.
+    </p>
+  </div>
+</section>
+
+<!-- ════════════════════ STEP 12 ════════════════════ -->
+<section class="step" data-step="12" id="step-12">
+  <h2>The properties panel</h2>
+  <p>
+    Clicking a node or edge opens a floating panel in the top-right of the canvas. This panel lets you edit the selected element's properties.
+  </p>
+
+  <p><strong>For nodes:</strong> edit the label (supports LaTeX), toggle the ground flag, or delete the node.</p>
+  <p><strong>For edges:</strong> see the element type (color-coded), edit the value, see the unit (fF / nH / GHz), or delete the edge.</p>
+
+  <span class="filename">src/components/PropertiesPanel.jsx (structure)</span>
+  <pre>export default function PropertiesPanel({ selected, nodes, edges,
+                                           onUpdateNode, onUpdateEdge,
+                                           onDeleteNode, onDeleteEdge }) {
+  if (!selected) return null
+
+  const isNode = selected.type === 'node'
+
+  return (
+    &lt;div style={{ position: 'absolute', top: 12, right: 12, ... }}&gt;
+      {isNode ? (
+        &lt;&gt;
+          &lt;input value={node.label} onChange={...} /&gt;
+          &lt;label&gt;&lt;input type="checkbox" /&gt; Ground node&lt;/label&gt;
+          &lt;button onClick={onDeleteNode}&gt;Delete&lt;/button&gt;
+        &lt;/&gt;
+      ) : (
+        &lt;&gt;
+          &lt;span style={{ color: ELEMENT_TYPES[edge.type].color }}&gt;
+            {ELEMENT_TYPES[edge.type].label}
+          &lt;/span&gt;
+          &lt;input type="number" value={edge.value} onChange={...} /&gt;
+          &lt;span&gt;{ELEMENT_TYPES[edge.type].unit}&lt;/span&gt;
+          &lt;button onClick={onDeleteEdge}&gt;Delete&lt;/button&gt;
+        &lt;/&gt;
+      )}
+    &lt;/div&gt;
+  )
+}</pre>
+
+  <p>
+    Pressing <strong>Escape</strong> deselects whatever is selected and also cancels a pending connection.
+  </p>
+</section>
+
+<!-- ════════════════════ STEP 13 ════════════════════ -->
+<section class="step" data-step="13" id="step-13">
+  <h2>The analysis panel &amp; adjacency matrix</h2>
+  <p>
+    The right sidebar (<code>HamiltonianPanel.jsx</code>) shows the circuit's <strong>graph connection matrix</strong> &mdash; a table where each cell counts how many circuit elements connect two nodes. This is the first step toward full Hamiltonian extraction: the topology has to be right before we can stamp physical values into a capacitance matrix.
+  </p>
+
+  <span class="filename">src/physics/hamiltonian.js</span>
+  <pre>export function adjacencyMatrix(nodes, edges) {
+  const n = nodes.length
+  const matrix = Array.from({ length: n },
+                   () => Array(n).fill(0))
+
+  for (const edge of edges) {
+    const i = nodes.findIndex(n => n.id === edge.from)
+    const j = nodes.findIndex(n => n.id === edge.to)
+    if (i >= 0 && j >= 0) {
+      matrix[i][j]++
+      matrix[j][i]++   // symmetric
+    }
+  }
+
+  return { matrix, nodeIds: nodes.map(n => n.id) }
+}</pre>
+
+  <p>
+    Build a small circuit below and watch the adjacency matrix update in real time &mdash; exactly as it does in the app:
+  </p>
+
+  <!-- ── INTERACTIVE: Mini circuit builder + adjacency matrix ── -->
+  <div class="demo-container">
+    <div class="demo-header">
+      <span>Try it: build a circuit &amp; see the adjacency matrix</span>
+      <span class="demo-tag">Interactive</span>
+    </div>
+    <div class="demo-body">
+      <div class="demo-toolbar">
+        <button class="demo-btn active" id="cb-tool-node" onclick="setCBTool('node')">Add node</button>
+        <button class="demo-btn" id="cb-tool-C" onclick="setCBTool('C')" style="color:#3b82f6;border-color:#3b82f640">C</button>
+        <button class="demo-btn" id="cb-tool-L" onclick="setCBTool('L')" style="color:#10b981;border-color:#10b98140">L</button>
+        <button class="demo-btn" id="cb-tool-JJ" onclick="setCBTool('JJ')" style="color:#f59e0b;border-color:#f59e0b40">JJ</button>
+        <button class="demo-btn red" id="cb-clear" onclick="clearCB()">Clear</button>
+      </div>
+      <svg id="cb-svg" viewBox="0 0 770 240" height="240"
+           style="background: var(--bg); border: 1px solid var(--border);">
+        <defs>
+          <pattern id="demo-grid-2" width="30" height="30" patternUnits="userSpaceOnUse">
+            <circle cx="15" cy="15" r="0.6" fill="var(--grid-dot)"/>
+          </pattern>
+        </defs>
+        <rect width="770" height="240" fill="url(#demo-grid-2)"/>
+      </svg>
+      <p class="demo-status" id="cb-status">Select "Add node" and click the canvas to place nodes. Then select C, L, or JJ and click two nodes to connect them.</p>
+      <div class="demo-matrix" id="cb-matrix"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════ STEP 14 ════════════════════ -->
+<section class="step" data-step="14" id="step-14">
+  <h2>Undo/redo</h2>
+  <p>
+    We implemented a simple but effective <strong>snapshot-based</strong> undo/redo system without any library.
+  </p>
+
+  <div class="diagram">
+    <span class="label">[state 0]</span>
+    <span class="arrow"> &rarr; </span>
+    <span class="label">[state 1]</span>
+    <span class="arrow"> &rarr; </span>
+    <span class="label">[state 2]</span>
+    <span class="arrow"> &rarr; </span>
+    <span class="label">[state 3]</span><br>
+    <span style="color: var(--accent-blue);">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&uarr; undo &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&uarr; current</span>
+  </div>
+
+  <p>The history lives in a <code>useRef</code> (not state, to avoid re-render loops):</p>
+
+  <pre>const historyRef = useRef({
+  stack: [{ nodes: initialNodes, edges: initialEdges }],
+  index: 0,
+})
+const skipHistoryRef = useRef(false)</pre>
+
+  <p>
+    A <code>useEffect</code> watches <code>nodes</code> and <code>edges</code>. Whenever they change (and we're not currently restoring a snapshot), it pushes a new snapshot onto the stack:
+  </p>
+
+  <pre>useEffect(() => {
+  if (skipHistoryRef.current) {
+    skipHistoryRef.current = false
+    return
+  }
+  // Compare to last snapshot via JSON (skip if identical)
+  const last = history.stack[history.index]
+  if (JSON.stringify({ nodes, edges }) === JSON.stringify(last)) return
+
+  // Truncate any redo entries, push new snapshot
+  history.stack = history.stack.slice(0, history.index + 1)
+  history.stack.push({ nodes: structuredClone(nodes),
+                       edges: structuredClone(edges) })
+  history.index++
+
+  // Cap at 100 snapshots
+  if (history.stack.length > 100) {
+    history.stack.shift()
+    history.index--
+  }
+}, [nodes, edges])</pre>
+
+  <p>
+    <strong>Ctrl+Z</strong> decrements the index and restores that snapshot. <strong>Ctrl+Y</strong> (or Ctrl+Shift+Z) increments it. The <code>skipHistoryRef</code> flag prevents the restoration itself from creating a new history entry. Here's a miniature version of the same mechanism:
+  </p>
+
+  <!-- ── INTERACTIVE: Undo/redo ── -->
+  <div class="demo-container">
+    <div class="demo-header">
+      <span>Try it: snapshot undo/redo</span>
+      <span class="demo-tag">Interactive</span>
+    </div>
+    <div class="demo-body">
+      <div class="demo-toolbar">
+        <button class="demo-btn" id="undo-add" onclick="undoDemoAdd()">Add random dot</button>
+        <button class="demo-btn" id="undo-undo" onclick="undoDemoUndo()" disabled>Undo</button>
+        <button class="demo-btn" id="undo-redo" onclick="undoDemoRedo()" disabled>Redo</button>
+        <button class="demo-btn red" onclick="undoDemoClear()">Clear</button>
+      </div>
+      <div class="undo-canvas" id="undo-canvas"></div>
+      <div class="undo-history" id="undo-history">
+        <span style="color:var(--text-dim)">History:</span>
+        <span class="snap current">empty</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════ STEP 15 ════════════════════ -->
+<section class="step" data-step="15" id="step-15">
+  <h2>Export, presets, and what's next</h2>
+  <p>
+    The toolbar's <strong>Export JSON</strong> button serializes the current circuit into a downloadable file containing nodes, edges, and the adjacency matrix:
+  </p>
+
+  <span class="filename">src/circuit/exportJSON.js</span>
+  <pre>export function downloadJSON(nodes, edges, filename = 'circuit-topology.json') {
+  const payload = {
+    _meta: { generator: 'fluxonium-builder', exported_at: new Date() },
+    nodes: nodes.map(n => ({ id: n.id, label: n.label, is_ground: n.isGround })),
+    edges: edges.map(e => ({
+      id: e.id, from: e.from, to: e.to,
+      type: e.type, value: e.value,
+      unit: ELEMENT_TYPES[e.type].unit,
+    })),
+    adjacency_matrix: adjacencyMatrix(nodes, edges).matrix,
+  }
+
+  const blob = new Blob([JSON.stringify(payload, null, 2)],
+                        { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}</pre>
+
+  <p>
+    The <strong>circuit presets</strong> module (<code>presets.js</code>) defines template topologies for common superconducting qubits (transmon, fluxonium, JJ arrays). Each preset is a factory function returning a set of nodes and edges that can be loaded onto the canvas.
+  </p>
+
+  <div class="callout future">
+    <div class="callout-title">What's next: the physics engine</div>
+    <p>
+      Right now the app gives us the circuit topology &mdash; nodes, edges, and the graph connection matrix. The next phase is building out the <code>src/physics/</code> module to extract the full Hamiltonian parameters from this topology:
+    </p>
+    <ul style="margin: 10px 0 0 18px; color: var(--text-dim);">
+      <li><strong>Capacitance matrix</strong> via modified nodal analysis (MNA stamping)</li>
+      <li><strong>Charging energies</strong> E<sub>C</sub> = e&sup2;/(2C) per node</li>
+      <li><strong>Inductive energies</strong> E<sub>L</sub> = &phi;<sub>0</sub>&sup2;/L per inductor</li>
+      <li><strong>Josephson energies</strong> E<sub>J</sub> (already stored in GHz)</li>
+      <li><strong>Flux loop detection</strong> for external flux &phi;<sub>ext</sub> parameters</li>
+      <li><strong>Symbolic Hamiltonian</strong> display in the phase/number basis</li>
+      <li><strong>Export to scQubits / QuTiP</strong> format for downstream simulation</li>
+    </ul>
+    <p style="margin-top: 10px; color: var(--text-dim);">
+      The foundations are already laid &mdash; <code>constants.js</code> has the SI physical constants, <code>linalg.js</code> has matrix inversion, and <code>loops.js</code> has the flux loop detection algorithm. Wiring these into the UI is the next step.
+    </p>
+  </div>
+</section>
+
+</main>
+
+<!-- ════════════════════ FOOTER ════════════════════ -->
+<footer>
+  <p>Fluxonium Circuit Builder &mdash; built with React, SVG, and stubbornness.</p>
+  <p style="margin-top: 8px;">
+    Based on the formalism of
+    <a href="https://arxiv.org/abs/2512.05851" target="_blank" rel="noopener">Lin et al. (arXiv: 2512.05851)</a>.
+  </p>
+</footer>
+
+<!-- ════════════════════════════════════════════════════════
+     INTERACTIVE DEMO SCRIPTS
+     ════════════════════════════════════════════════════════ -->
+<script>
+// ── Demo 1: Node placement ──────────────────────────────
+(function() {
+  var svg = document.getElementById('node-demo-svg');
+  var status = document.getElementById('node-demo-status');
+  window._nodeDemoCount = 0;
+  var dragging = null;
+  var dragOffset = { x: 0, y: 0 };
+  var colors = ['#3b82f6','#10b981','#f59e0b','#a78bfa','#ef4444','#ec4899','#06b6d4','#84cc16'];
+
+  function svgPt(e) {
+    var rect = svg.getBoundingClientRect();
+    var vb = svg.viewBox.baseVal;
+    return {
+      x: (e.clientX - rect.left) / rect.width * vb.width,
+      y: (e.clientY - rect.top) / rect.height * vb.height
+    };
+  }
+
+  svg.addEventListener('mousedown', function(e) {
+    if (e.target.classList.contains('demo-node-circle')) {
+      dragging = e.target.parentElement;
+      var pt = svgPt(e);
+      dragOffset.x = pt.x - parseFloat(dragging.dataset.x);
+      dragOffset.y = pt.y - parseFloat(dragging.dataset.y);
+      e.preventDefault();
+      return;
+    }
+    if (e.target.tagName === 'circle' || e.target.tagName === 'text') return;
+    var pt = svgPt(e);
+    var id = ++window._nodeDemoCount;
+    var col = colors[(id - 1) % colors.length];
+    var g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.classList.add('demo-node');
+    g.dataset.x = pt.x;
+    g.dataset.y = pt.y;
+    g.innerHTML = '<circle class="demo-node-circle" cx="' + pt.x + '" cy="' + pt.y + '" r="16" fill="' + col + '22" stroke="' + col + '" stroke-width="2" style="cursor:grab"/>' +
+                  '<text x="' + pt.x + '" y="' + (pt.y + 5) + '" text-anchor="middle" fill="' + col + '" font-size="12" font-family="JetBrains Mono,monospace" font-weight="600" style="pointer-events:none">' + id + '</text>';
+    svg.appendChild(g);
+    status.textContent = 'Placed node ' + id + ' at (' + Math.round(pt.x) + ', ' + Math.round(pt.y) + '). Drag nodes to reposition them.';
+  });
+
+  svg.addEventListener('mousemove', function(e) {
+    if (!dragging) return;
+    var pt = svgPt(e);
+    var nx = pt.x - dragOffset.x;
+    var ny = pt.y - dragOffset.y;
+    dragging.dataset.x = nx;
+    dragging.dataset.y = ny;
+    var circle = dragging.querySelector('circle');
+    var text = dragging.querySelector('text');
+    circle.setAttribute('cx', nx);
+    circle.setAttribute('cy', ny);
+    text.setAttribute('x', nx);
+    text.setAttribute('y', ny + 5);
+  });
+
+  svg.addEventListener('mouseup', function() { dragging = null; });
+  svg.addEventListener('mouseleave', function() { dragging = null; });
+})();
+
+// ── Demo 2: Circuit builder + adjacency matrix ─────────
+(function() {
+  var svg = document.getElementById('cb-svg');
+  var status = document.getElementById('cb-status');
+  var matrixDiv = document.getElementById('cb-matrix');
+  var nodes = [];
+  var edges = [];
+  var tool = 'node';
+  var connectFrom = null;
+  var nextId = 0;
+  var dragging = null;
+  var dragOffset = { x: 0, y: 0 };
+  var didDrag = false;
+  var edgeColors = { C: '#3b82f6', L: '#10b981', JJ: '#f59e0b' };
+
+  function svgPt(e) {
+    var rect = svg.getBoundingClientRect();
+    var vb = svg.viewBox.baseVal;
+    return {
+      x: (e.clientX - rect.left) / rect.width * vb.width,
+      y: (e.clientY - rect.top) / rect.height * vb.height
+    };
+  }
+
+  window.setCBTool = function(t) {
+    tool = t;
+    connectFrom = null;
+    document.querySelectorAll('#cb-tool-node,#cb-tool-C,#cb-tool-L,#cb-tool-JJ').forEach(function(b) {
+      b.classList.remove('active');
+    });
+    document.getElementById('cb-tool-' + t).classList.add('active');
+    // Deselect visual
+    svg.querySelectorAll('.cb-node circle').forEach(function(c) {
+      c.setAttribute('stroke-dasharray', 'none');
+      c.setAttribute('r', '16');
+    });
+    if (t === 'node') status.textContent = 'Click the canvas to place a node.';
+    else status.textContent = 'Click a node to start a ' + t + ' connection.';
+    renderMatrix();
+  };
+
+  window.clearCB = function() {
+    nodes = []; edges = []; nextId = 0; connectFrom = null;
+    svg.querySelectorAll('.cb-node, .cb-edge').forEach(function(el) { el.remove(); });
+    status.textContent = 'Canvas cleared. Select "Add node" and click to place nodes.';
+    renderMatrix();
+  };
+
+  function renderMatrix() {
+    if (nodes.length === 0) { matrixDiv.innerHTML = ''; return; }
+    var n = nodes.length;
+    var mat = [];
+    for (var i = 0; i < n; i++) { mat[i] = []; for (var j = 0; j < n; j++) mat[i][j] = 0; }
+    edges.forEach(function(e) {
+      var fi = nodes.findIndex(function(nd) { return nd.id === e.from; });
+      var ti = nodes.findIndex(function(nd) { return nd.id === e.to; });
+      if (fi >= 0 && ti >= 0) { mat[fi][ti]++; mat[ti][fi]++; }
+    });
+    var html = '<table><tr><th></th>';
+    nodes.forEach(function(nd) { html += '<th>' + nd.label + '</th>'; });
+    html += '</tr>';
+    for (var i = 0; i < n; i++) {
+      html += '<tr><th>' + nodes[i].label + '</th>';
+      for (var j = 0; j < n; j++) {
+        var v = mat[i][j];
+        html += '<td class="' + (v > 0 ? 'nonzero' : 'zero') + '">' + (v > 0 ? v : '&mdash;') + '</td>';
+      }
+      html += '</tr>';
+    }
+    html += '</table>';
+    matrixDiv.innerHTML = html;
+  }
+
+  function findNodeAt(pt) {
+    for (var i = nodes.length - 1; i >= 0; i--) {
+      var dx = nodes[i].x - pt.x, dy = nodes[i].y - pt.y;
+      if (dx * dx + dy * dy < 20 * 20) return nodes[i];
+    }
+    return null;
+  }
+
+  function drawEdge(e) {
+    var fn = nodes.find(function(n) { return n.id === e.from; });
+    var tn = nodes.find(function(n) { return n.id === e.to; });
+    if (!fn || !tn) return;
+    var g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.classList.add('cb-edge');
+    g.dataset.id = e.id;
+    g.innerHTML = '<line x1="' + fn.x + '" y1="' + fn.y + '" x2="' + tn.x + '" y2="' + tn.y + '" stroke="' + edgeColors[e.type] + '" stroke-width="2" stroke-opacity="0.6"/>';
+    // Insert edges before nodes
+    var firstNode = svg.querySelector('.cb-node');
+    if (firstNode) svg.insertBefore(g, firstNode);
+    else svg.appendChild(g);
+  }
+
+  function redrawEdges() {
+    svg.querySelectorAll('.cb-edge').forEach(function(el) { el.remove(); });
+    edges.forEach(drawEdge);
+  }
+
+  svg.addEventListener('mousedown', function(e) {
+    var pt = svgPt(e);
+    var nd = findNodeAt(pt);
+    if (nd && tool !== 'node') {
+      // Don't start drag when connecting
+      return;
+    }
+    if (nd) {
+      dragging = nd;
+      didDrag = false;
+      dragOffset.x = pt.x - nd.x;
+      dragOffset.y = pt.y - nd.y;
+      e.preventDefault();
+    }
+  });
+
+  svg.addEventListener('mousemove', function(e) {
+    if (!dragging) return;
+    didDrag = true;
+    var pt = svgPt(e);
+    dragging.x = pt.x - dragOffset.x;
+    dragging.y = pt.y - dragOffset.y;
+    var g = svg.querySelector('.cb-node[data-id="' + dragging.id + '"]');
+    if (g) {
+      g.querySelector('circle').setAttribute('cx', dragging.x);
+      g.querySelector('circle').setAttribute('cy', dragging.y);
+      g.querySelector('text').setAttribute('x', dragging.x);
+      g.querySelector('text').setAttribute('y', dragging.y + 5);
+    }
+    redrawEdges();
+  });
+
+  svg.addEventListener('mouseup', function() { dragging = null; });
+  svg.addEventListener('mouseleave', function() { dragging = null; });
+
+  svg.addEventListener('click', function(e) {
+    if (didDrag) { didDrag = false; return; }
+    var pt = svgPt(e);
+    var nd = findNodeAt(pt);
+
+    if (tool === 'node') {
+      if (nd) return; // Don't place on top of existing node
+      var id = ++nextId;
+      var node = { id: id, x: pt.x, y: pt.y, label: 'n' + id };
+      nodes.push(node);
+      var g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      g.classList.add('cb-node');
+      g.dataset.id = id;
+      g.innerHTML = '<circle cx="' + pt.x + '" cy="' + pt.y + '" r="16" fill="var(--node-fill)" stroke="var(--accent-blue)" stroke-width="2" style="cursor:pointer"/>' +
+                    '<text x="' + pt.x + '" y="' + (pt.y + 5) + '" text-anchor="middle" fill="var(--accent-blue)" font-size="11" font-family="JetBrains Mono,monospace" font-weight="600" style="pointer-events:none">' + node.label + '</text>';
+      svg.appendChild(g);
+      status.textContent = 'Placed ' + node.label + '. ' + (nodes.length < 2 ? 'Add at least two nodes to connect them.' : 'Select C, L, or JJ to connect nodes.');
+      renderMatrix();
+      return;
+    }
+
+    // Connect mode
+    if (!nd) return;
+    if (!connectFrom) {
+      connectFrom = nd;
+      // Visual feedback
+      var cg = svg.querySelector('.cb-node[data-id="' + nd.id + '"] circle');
+      if (cg) { cg.setAttribute('stroke-dasharray', '4 3'); cg.setAttribute('r', '20'); }
+      status.textContent = 'Selected ' + nd.label + '. Now click a second node to place a ' + tool + '.';
+    } else {
+      if (nd.id === connectFrom.id) { status.textContent = 'Click a different node.'; return; }
+      var edge = { id: 'e' + (edges.length + 1), from: connectFrom.id, to: nd.id, type: tool };
+      edges.push(edge);
+      drawEdge(edge);
+      // Reset visual
+      svg.querySelectorAll('.cb-node circle').forEach(function(c) {
+        c.setAttribute('stroke-dasharray', 'none');
+        c.setAttribute('r', '16');
+      });
+      status.textContent = 'Connected ' + connectFrom.label + ' \u2014 ' + nd.label + ' with ' + tool + '. Matrix updated.';
+      connectFrom = null;
+      renderMatrix();
+    }
+  });
+})();
+
+// ── Demo 3: Undo/redo ──────────────────────────────────
+(function() {
+  var canvas = document.getElementById('undo-canvas');
+  var historyEl = document.getElementById('undo-history');
+  var undoBtn = document.getElementById('undo-undo');
+  var redoBtn = document.getElementById('undo-redo');
+  var colors = ['#3b82f6','#10b981','#f59e0b','#a78bfa','#ef4444','#ec4899','#06b6d4','#84cc16','#f97316','#14b8a6'];
+  var stack = [[]]; // snapshots of dot arrays
+  var idx = 0;
+
+  function renderDots() {
+    canvas.innerHTML = '';
+    var dots = stack[idx];
+    if (dots.length === 0) {
+      canvas.innerHTML = '<span style="color:var(--text-dim);font-family:JetBrains Mono,monospace;font-size:0.78rem">Empty &mdash; click "Add random dot"</span>';
+    }
+    dots.forEach(function(d) {
+      var el = document.createElement('div');
+      el.className = 'undo-dot';
+      el.style.background = d.color;
+      el.textContent = d.id;
+      canvas.appendChild(el);
+    });
+    undoBtn.disabled = (idx <= 0);
+    redoBtn.disabled = (idx >= stack.length - 1);
+
+    // Render history bar
+    var html = '<span style="color:var(--text-dim)">History:</span> ';
+    stack.forEach(function(snap, i) {
+      var cls = 'snap';
+      if (i === idx) cls += ' current';
+      else if (i > idx) cls += ' future';
+      html += '<span class="' + cls + '">' + (snap.length === 0 ? 'empty' : snap.length + ' dot' + (snap.length > 1 ? 's' : '')) + '</span> ';
+    });
+    historyEl.innerHTML = html;
+  }
+
+  window.undoDemoAdd = function() {
+    var current = stack[idx].slice();
+    var id = current.length + 1;
+    current.push({ id: id, color: colors[(id - 1) % colors.length] });
+    // Truncate redo
+    stack = stack.slice(0, idx + 1);
+    stack.push(current);
+    idx++;
+    if (stack.length > 20) { stack.shift(); idx--; }
+    renderDots();
+  };
+
+  window.undoDemoUndo = function() {
+    if (idx > 0) { idx--; renderDots(); }
+  };
+
+  window.undoDemoRedo = function() {
+    if (idx < stack.length - 1) { idx++; renderDots(); }
+  };
+
+  window.undoDemoClear = function() {
+    stack = [[]]; idx = 0; renderDots();
+  };
+
+  renderDots();
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,112 @@
+/* =========================================================================
+ * Dark theme — "Tech Innovation"
+ *   Electric Blue  #0066ff   Neon Cyan      #00ffff
+ *   Dark Gray      #1e1e1e   White          #ffffff
+ * ========================================================================= */
+:root {
+  --bg-primary: #2d2d30;
+  --bg-secondary: #6b6b6b;
+  --bg-panel: #2a2a2e;
+  --bg-card: #37373d;
+  --bg-input: #222226;
+  --border: #45454d;
+  --border-subtle: #32323a;
+  --text-primary: #ffffff;
+  --text-secondary: #d4dae4;
+  --text-muted: #9aa3b2;
+  --text-dim: #5a6070;
+  --accent-blue: #2b80ff;
+  --accent-green: #33ffff;
+  --accent-amber: #f5a623;
+  --accent-red: #ff4a6e;
+  --font-mono: 'JetBrains Mono', 'DejaVu Sans Mono', 'IBM Plex Mono', ui-monospace, monospace;
+  --node-fill: #3a3a42;
+  --node-ground-fill: #1a1a1e;
+  --grid-line: #3a3a42;
+  --wire-color: #a8b0bc;
+  --tool-active-bg: rgba(43, 128, 255, 0.20);
+}
+
+/* =========================================================================
+ * Light theme — "Modern Minimalist"
+ *   Charcoal   #36454f   Slate Gray   #708090
+ *   Light Gray #d3d3d3   White        #ffffff
+ * ========================================================================= */
+:root.light {
+  --bg-primary: #e6e8ec;
+  --bg-secondary: #dde0e5;
+  --bg-panel: #edeff2;
+  --bg-card: #d7dae0;
+  --bg-input: #cfd3da;
+  --border: #aeb4bd;
+  --border-subtle: #c6cad1;
+  --text-primary: #36454f;
+  --text-secondary: #627180;
+  --text-muted: #7c8593;
+  --text-dim: #a8aeb8;
+  --accent-blue: #36454f;
+  --accent-green: #4a7c59;
+  --accent-amber: #b8860b;
+  --accent-red: #8b3a3a;
+  --node-fill: #d4d8de;
+  --node-ground-fill: #b8bec6;
+  --grid-line: #d2d6dc;
+  --wire-color: #36454f;
+  --tool-active-bg: rgba(54, 69, 79, 0.10);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  -webkit-font-smoothing: antialiased;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  opacity: 1;
+}
+
+::selection {
+  background: var(--accent-blue);
+  color: var(--bg-primary);
+}
+
+/* Scrollbar theming */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--bg-primary);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) var(--bg-primary);
+}
