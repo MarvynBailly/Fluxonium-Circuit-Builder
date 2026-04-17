@@ -2,6 +2,8 @@
 
 An interactive web tool for building superconducting quantum circuit models and extracting the Hamiltonian parameters needed for lattice field theory simulation.
 
+**Try it live:** [marvyn.com/Fluxonium-Circuit-Builder](https://marvyn.com/Fluxonium-Circuit-Builder/)
+
 ## Motivation
 
 Large superconducting quantum circuits are difficult to analyze from first principles. [Lin et al. (2025)](https://arxiv.org/abs/2512.05851) introduced a lattice field theory approach that formulates circuit-QED as a path integral and extracts the many-body spectrum via Monte Carlo sampling. This tool provides the first step in that pipeline: going from a circuit schematic to the numerical Hamiltonian parameters that enter the lattice action.
@@ -9,20 +11,18 @@ Large superconducting quantum circuits are difficult to analyze from first princ
 ## Features
 
 - **Visual circuit editor** — drag-and-drop nodes; connect them with capacitors, inductors, and Josephson junctions
-<!--- **Real-time Hamiltonian extraction** — capacitance matrix, charging energies, inductive energies, Josephson energies, and symbolic Hamiltonian update live as you edit-->
-<!--- **Preset circuits** — load standard topologies (transmon, simple fluxonium, JJ-array fluxonium) with one click-->
 - **JSON export** — download all Hamiltonian parameters in a structured format ready for a solver
 
-## Quick start
+## Building from source
+
+If you'd like to run the tool locally, clone the repo and start the dev server using:
 
 ```bash
-git clone https://github.com/MarvynBailly/fluxonium-circuit-builder.git
-cd fluxonium-circuit-builder
+git clone https://github.com/MarvynBailly/Fluxonium-Circuit-Builder.git
+cd Fluxonium-Circuit-Builder
 npm install
 npm run dev
 ```
-
-Open [http://localhost:3000](http://localhost:3000).
 
 ## Usage
 
@@ -42,4 +42,3 @@ Open [http://localhost:3000](http://localhost:3000).
   "edges": [{ "from": 0, "to": 1, "type": "JJ", "value": 8.0, "unit": "GHz" }, ...],
   "adjacency_matrix": [[...]]
 }
-```
