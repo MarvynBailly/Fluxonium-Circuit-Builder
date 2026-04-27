@@ -2,7 +2,7 @@
   "_meta": {
     "generator": "fluxonium-circuit-builder",
     "version": "0.2.0",
-    "exported_at": "2026-04-26T21:23:54.390Z",
+    "exported_at": "2026-04-26T22:22:57.259Z",
     "description": "Circuit topology exported from an interactive circuit graph."
   },
   "nodes": [
@@ -87,27 +87,61 @@
       0
     ]
   ],
+  "capacitance_matrix": {
+    "node_order": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "cells": [
+      [
+        "C_{0} + C_{3}",
+        "-C_{3}",
+        "0",
+        "-C_{0}"
+      ],
+      [
+        "-C_{3}",
+        "C_{2} + C_{3}",
+        "-C_{2}",
+        "0"
+      ],
+      [
+        "0",
+        "-C_{2}",
+        "C_{1} + C_{2}",
+        "-C_{1}"
+      ],
+      [
+        "-C_{0}",
+        "0",
+        "-C_{1}",
+        "C_{0} + C_{1}"
+      ]
+    ]
+  },
   "wire_geometry": {
     "vertices": [
       {
         "id": 0,
-        "x": 480,
-        "y": 140
+        "x": 300,
+        "y": 270
       },
       {
         "id": 1,
-        "x": 660,
-        "y": 510
+        "x": 570,
+        "y": 270
       },
       {
         "id": 2,
-        "x": 450,
+        "x": 570,
         "y": 510
       },
       {
         "id": 3,
         "x": 300,
-        "y": 320
+        "y": 510
       }
     ],
     "segments": [

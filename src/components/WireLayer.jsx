@@ -91,8 +91,13 @@ export default function WireLayer({
   selectedTool,
   selected,
   onVertexMouseDown,
+  onComponentMouseDown,
   showLabels = true,
   zoom = 1,
+  highlightedNodeId = null,
+  highlightedComponentId = null,
+  onHighlightNode,
+  onHighlightComponent,
 }) {
   const vById = new Map(wire.vertices.map((v) => [v.id, v]));
   const sById = new Map(wire.segments.map((s) => [s.id, s]));
@@ -178,17 +183,36 @@ export default function WireLayer({
               if (slot.t2 <= slot.t1) return null;
               const slotSelected =
                 isSelected && (selectedSlot === undefined || selectedSlot === k);
+              const slotHighlighted =
+                highlightedNodeId !== null && slot.nodeId === highlightedNodeId;
               const stroke = slotSelected ? 'var(--accent-blue)' : colorForNode(slot.nodeId);
+              const x1 = a.x + slot.t1 * dx;
+              const y1 = a.y + slot.t1 * dy;
+              const x2 = a.x + slot.t2 * dx;
+              const y2 = a.y + slot.t2 * dy;
               return (
-                <line
-                  key={k}
-                  x1={a.x + slot.t1 * dx}
-                  y1={a.y + slot.t1 * dy}
-                  x2={a.x + slot.t2 * dx}
-                  y2={a.y + slot.t2 * dy}
-                  stroke={stroke}
-                  strokeWidth={slotSelected ? 3 : 2}
-                />
+                <g key={k}>
+                  {slotHighlighted && (
+                    <line
+                      x1={x1}
+                      y1={y1}
+                      x2={x2}
+                      y2={y2}
+                      stroke={stroke}
+                      strokeWidth={9}
+                      strokeLinecap="round"
+                      opacity={0.35}
+                    />
+                  )}
+                  <line
+                    x1={x1}
+                    y1={y1}
+                    x2={x2}
+                    y2={y2}
+                    stroke={stroke}
+                    strokeWidth={slotSelected ? 3 : slotHighlighted ? 3.5 : 2}
+                  />
+                </g>
               );
             })}
           </g>
@@ -202,6 +226,22 @@ export default function WireLayer({
         const a = vById.get(seg.from);
         const b = vById.get(seg.to);
         if (!a || !b) return null;
+        const compsOnThisSeg = wire.components
+          .filter((cc) => cc.segmentId === c.segmentId)
+          .sort((p, q) => p.t - q.t);
+        const compIdx = compsOnThisSeg.findIndex((cc) => cc.id === c.id);
+        const leftNodeId =
+          compIdx === 0
+            ? vertexNodeId.get(seg.from)
+            : phantomNodeIdByKey.get(
+                `gap:${compsOnThisSeg[compIdx - 1].id}:${c.id}`,
+              );
+        const rightNodeId =
+          compIdx === compsOnThisSeg.length - 1
+            ? vertexNodeId.get(seg.to)
+            : phantomNodeIdByKey.get(
+                `gap:${c.id}:${compsOnThisSeg[compIdx + 1].id}`,
+              );
         const dx = b.x - a.x;
         const dy = b.y - a.y;
         const L = Math.hypot(dx, dy);
@@ -216,6 +256,7 @@ export default function WireLayer({
         const x2 = cx + ux * half;
         const y2 = cy + uy * half;
         const isSelected = selected?.kind === 'wireComponent' && selected.id === c.id;
+        const isHighlighted = highlightedComponentId === c.id;
         const info = ELEMENT_TYPES[c.type];
         const compColor = c.color || info.color;
 
@@ -233,6 +274,18 @@ export default function WireLayer({
 
         return (
           <g key={c.id} pointerEvents="none">
+            {isHighlighted && (
+              <line
+                x1={x1}
+                y1={y1}
+                x2={x2}
+                y2={y2}
+                stroke={compColor}
+                strokeWidth={14}
+                strokeLinecap="round"
+                opacity={0.4}
+              />
+            )}
             {isSelected && (
               <line
                 x1={x1}
@@ -253,8 +306,39 @@ export default function WireLayer({
               color={compColor}
               wireColor="var(--text-secondary)"
             />
+            <circle cx={x1} cy={y1} r={3} fill={colorForNode(leftNodeId)} pointerEvents="none" />
+            <circle cx={x2} cy={y2} r={3} fill={colorForNode(rightNodeId)} pointerEvents="none" />
+            {onComponentMouseDown && !selectedTool && (
+              <line
+                x1={x1}
+                y1={y1}
+                x2={x2}
+                y2={y2}
+                stroke="transparent"
+                strokeWidth={26}
+                strokeLinecap="round"
+                pointerEvents="stroke"
+                style={{ cursor: 'grab' }}
+                onMouseDown={(e) => onComponentMouseDown(c.id, e)}
+              />
+            )}
             {showLabels && c.value && (
-              <g transform={`translate(${lx},${ly}) scale(${labelScale})`}>
+              <g
+                transform={`translate(${lx},${ly}) scale(${labelScale})`}
+                pointerEvents={onHighlightComponent ? 'auto' : 'none'}
+                style={onHighlightComponent ? { cursor: 'pointer' } : undefined}
+                onMouseDown={
+                  onHighlightComponent ? (e) => e.stopPropagation() : undefined
+                }
+                onClick={
+                  onHighlightComponent
+                    ? (e) => {
+                        e.stopPropagation();
+                        onHighlightComponent(c.id);
+                      }
+                    : undefined
+                }
+              >
                 <SvgLatex
                   text={String(c.value)}
                   x={0}
@@ -288,6 +372,8 @@ export default function WireLayer({
         const isDrawingFrom = drawingFromVertexId === v.id;
         const isSelected = selected?.kind === 'wireVertex' && selected.id === v.id;
         const isHover = hover?.kind === 'vertex' && hover.id === v.id;
+        const myNodeId = vertexNodeId.get(v.id);
+        const isHighlighted = highlightedNodeId !== null && myNodeId === highlightedNodeId;
         const r = isDrawingFrom || isSelected || isHover ? VERTEX_HOVER_RADIUS : VERTEX_RADIUS;
         const fill = isDrawingFrom
           ? 'var(--accent-amber)'
@@ -295,7 +381,7 @@ export default function WireLayer({
             ? 'var(--accent-blue)'
             : isHover
               ? 'var(--accent-amber)'
-              : colorForNode(vertexNodeId.get(v.id));
+              : colorForNode(myNodeId);
         const cursor = selectedTool ? 'pointer' : 'grab';
         return (
           <g key={v.id}>
@@ -307,6 +393,16 @@ export default function WireLayer({
               onMouseDown={onVertexMouseDown ? (e) => onVertexMouseDown(v.id, e) : undefined}
               style={{ cursor }}
             />
+            {isHighlighted && (
+              <circle
+                cx={v.x}
+                cy={v.y}
+                r={r + 5}
+                fill={colorForNode(myNodeId)}
+                opacity={0.35}
+                pointerEvents="none"
+              />
+            )}
             <circle cx={v.x} cy={v.y} r={r} fill={fill} pointerEvents="none" />
           </g>
         );
@@ -319,8 +415,21 @@ export default function WireLayer({
         const lx = n.x + dir.x * NODE_LABEL_OFFSET;
         const ly = n.y + dir.y * NODE_LABEL_OFFSET;
         return (
-          <g key={`label-${n.id}`} pointerEvents="none">
-            <g transform={`translate(${lx},${ly}) scale(${labelScale})`}>
+          <g key={`label-${n.id}`}>
+            <g
+              transform={`translate(${lx},${ly}) scale(${labelScale})`}
+              pointerEvents={onHighlightNode ? 'auto' : 'none'}
+              style={onHighlightNode ? { cursor: 'pointer' } : undefined}
+              onMouseDown={onHighlightNode ? (e) => e.stopPropagation() : undefined}
+              onClick={
+                onHighlightNode
+                  ? (e) => {
+                      e.stopPropagation();
+                      onHighlightNode(n.id);
+                    }
+                  : undefined
+              }
+            >
               <SvgLatex
                 text={`${n.isGround ? '⏚\\, ' : ''}${n.label}`}
                 x={0}

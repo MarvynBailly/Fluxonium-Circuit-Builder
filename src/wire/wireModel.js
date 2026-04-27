@@ -63,6 +63,25 @@ export function snapToGrid(x, y, grid = GRID) {
   return { x: Math.round(x / grid) * grid, y: Math.round(y / grid) * grid };
 }
 
+/**
+ * Snap a component's parameter t so one of its terminals coincides
+ * with the segment's endpoint vertex, when t is within `tolPx` pixels
+ * of that aligned position. Mirrors the half-length clamp used at
+ * render time so the visible terminal lands exactly on the vertex.
+ */
+export function snapComponentEnd(t, segLength, tolPx = 14) {
+  if (segLength < 1e-6) return t;
+  const half = Math.min(COMPONENT_LENGTH, segLength * 0.9) / 2;
+  const tA = half / segLength;
+  const tB = 1 - half / segLength;
+  const tol = tolPx / segLength;
+  const dA = Math.abs(t - tA);
+  const dB = Math.abs(t - tB);
+  if (dA < tol && dA <= dB) return tA;
+  if (dB < tol) return tB;
+  return t;
+}
+
 export function snapFraction(t, tol = 0.06) {
   let best = null;
   for (const f of FRACTIONS) {
@@ -173,15 +192,113 @@ export function deleteSegment(wire, segmentId) {
   };
 }
 
+/**
+ * Delete a wire vertex without nuking its surroundings.
+ *   degree 0: just remove.
+ *   degree 1: remove vertex and its dangling segment, but only if that
+ *             segment carries no component (otherwise we'd silently
+ *             lose the component — refuse instead).
+ *   degree 2: merge the two incident segments into one straight segment
+ *             between the other endpoints; rescale t for any components
+ *             on either side using physical distances so positions stay
+ *             roughly where they were.
+ *   degree >2 or any merge that would create a self-loop / duplicate
+ *             segment: refuse (return the wire unchanged) to avoid
+ *             surprising data loss.
+ */
 export function deleteVertex(wire, vertexId) {
-  const removedSegmentIds = new Set(
-    wire.segments.filter((s) => s.from === vertexId || s.to === vertexId).map((s) => s.id),
+  const incident = wire.segments.filter(
+    (s) => s.from === vertexId || s.to === vertexId,
   );
+
+  if (incident.length === 0) {
+    return { ...wire, vertices: wire.vertices.filter((v) => v.id !== vertexId) };
+  }
+
+  if (incident.length === 1) {
+    const s = incident[0];
+    if (wire.components.some((c) => c.segmentId === s.id)) return wire;
+    return {
+      ...wire,
+      vertices: wire.vertices.filter((v) => v.id !== vertexId),
+      segments: wire.segments.filter((seg) => seg.id !== s.id),
+    };
+  }
+
+  if (incident.length === 2) {
+    const [s1, s2] = incident;
+    const s1HasComp = wire.components.some((c) => c.segmentId === s1.id);
+    const s2HasComp = wire.components.some((c) => c.segmentId === s2.id);
+    // If both sides carry components, the vertex is the junction between
+    // them — merging would visually slam the components together onto a
+    // single straight segment. Keep the bend.
+    if (s1HasComp && s2HasComp) return wire;
+    const A = s1.from === vertexId ? s1.to : s1.from;
+    const B = s2.from === vertexId ? s2.to : s2.from;
+    if (A === B) return wire;
+    const dup = wire.segments.find(
+      (s) =>
+        s.id !== s1.id &&
+        s.id !== s2.id &&
+        ((s.from === A && s.to === B) || (s.from === B && s.to === A)),
+    );
+    if (dup) return wire;
+
+    const vById = new Map(wire.vertices.map((v) => [v.id, v]));
+    const va = vById.get(A);
+    const vv = vById.get(vertexId);
+    const vb = vById.get(B);
+    if (!va || !vv || !vb) return wire;
+    const lenA = Math.hypot(va.x - vv.x, va.y - vv.y);
+    const lenB = Math.hypot(vb.x - vv.x, vb.y - vv.y);
+    const total = lenA + lenB;
+    if (total < 1e-9) return wire;
+    const mid = lenA / total;
+
+    const newSegId = `s${wire.nextSegmentId}`;
+    const newSeg = { id: newSegId, from: A, to: B };
+    const newLen = Math.hypot(va.x - vb.x, va.y - vb.y);
+
+    // s1 connects A and v. v sits at t=mid on the merged segment (A→B);
+    // A is at t=0. So a component at param t on s1 is at fractional
+    // distance from-v = (s1.from === v ? t : 1-t), and its merged-t is
+    // mid - mid * (distance-from-v / lenA scaled), i.e. it lies in [0, mid].
+    const remap = (c) => {
+      if (c.segmentId === s1.id) {
+        const distFromVOverLenA = s1.from === vertexId ? c.t : 1 - c.t;
+        const tNew = mid * (1 - distFromVOverLenA);
+        return { ...c, segmentId: newSegId, t: snapComponentEnd(tNew, newLen) };
+      }
+      if (c.segmentId === s2.id) {
+        const distFromVOverLenB = s2.from === vertexId ? c.t : 1 - c.t;
+        const tNew = mid + (1 - mid) * distFromVOverLenB;
+        return { ...c, segmentId: newSegId, t: snapComponentEnd(tNew, newLen) };
+      }
+      return c;
+    };
+
+    return {
+      ...wire,
+      vertices: wire.vertices.filter((v) => v.id !== vertexId),
+      segments: wire.segments
+        .filter((s) => s.id !== s1.id && s.id !== s2.id)
+        .concat([newSeg]),
+      components: wire.components.map(remap),
+      nextSegmentId: wire.nextSegmentId + 1,
+    };
+  }
+
+  // Higher degrees: allow deletion only if no incident segment carries
+  // a component — otherwise we'd silently lose data. With pure-wire
+  // incidents, just remove the vertex and its segments; the rest of
+  // the graph is untouched.
+  const incidentIds = new Set(incident.map((s) => s.id));
+  const incidentHasComp = wire.components.some((c) => incidentIds.has(c.segmentId));
+  if (incidentHasComp) return wire;
   return {
     ...wire,
     vertices: wire.vertices.filter((v) => v.id !== vertexId),
-    segments: wire.segments.filter((s) => !removedSegmentIds.has(s.id)),
-    components: wire.components.filter((c) => !removedSegmentIds.has(c.segmentId)),
+    segments: wire.segments.filter((s) => !incidentIds.has(s.id)),
   };
 }
 
@@ -348,6 +465,128 @@ export function setComponentValue(wire, componentId, value) {
   return {
     ...wire,
     components: wire.components.map((c) => (c.id === componentId ? { ...c, value } : c)),
+  };
+}
+
+export function setComponentPlacement(wire, componentId, segmentId, t) {
+  const tClamped = Math.max(0, Math.min(1, t));
+  return {
+    ...wire,
+    components: wire.components.map((c) =>
+      c.id === componentId ? { ...c, segmentId, t: tClamped } : c,
+    ),
+  };
+}
+
+/**
+ * Predicate: would `mergeVertices(wire, fromId, intoId)` be safe?
+ *   - Both vertices must have at most one incident segment (degree ≤ 1).
+ *   - No segment dropped by the merge (self-loops, duplicates) may
+ *     carry a component — that would silently destroy data.
+ */
+export function canMergeVertices(wire, fromId, intoId) {
+  if (fromId === intoId) return false;
+  let fromDeg = 0;
+  let intoDeg = 0;
+  for (const s of wire.segments) {
+    if (s.from === fromId || s.to === fromId) fromDeg++;
+    if (s.from === intoId || s.to === intoId) intoDeg++;
+  }
+  if (fromDeg > 1 || intoDeg > 1) return false;
+
+  const rewritten = wire.segments.map((s) => ({
+    ...s,
+    from: s.from === fromId ? intoId : s.from,
+    to: s.to === fromId ? intoId : s.to,
+  }));
+  const dropped = new Set();
+  const seenPairs = new Map();
+  for (const s of rewritten) {
+    if (s.from === s.to) {
+      dropped.add(s.id);
+      continue;
+    }
+    const lo = s.from < s.to ? s.from : s.to;
+    const hi = s.from < s.to ? s.to : s.from;
+    const key = `${lo}-${hi}`;
+    if (seenPairs.has(key)) dropped.add(s.id);
+    else seenPairs.set(key, s.id);
+  }
+  return !wire.components.some((c) => dropped.has(c.segmentId));
+}
+
+/**
+ * Merge `fromId` into `intoId`: every segment that referenced `fromId`
+ * now references `intoId`. Self-loops created by the merge are dropped
+ * (along with any component sitting on them); duplicate parallel
+ * segments are de-duplicated, keeping the first occurrence and any
+ * components on it. The `fromId` vertex is removed.
+ */
+export function mergeVertices(wire, fromId, intoId) {
+  if (fromId === intoId) return wire;
+  const rewritten = wire.segments.map((s) => ({
+    ...s,
+    from: s.from === fromId ? intoId : s.from,
+    to: s.to === fromId ? intoId : s.to,
+  }));
+  const droppedSegIds = new Set();
+  const seenPairs = new Map();
+  const uniqueSegs = [];
+  for (const s of rewritten) {
+    if (s.from === s.to) {
+      droppedSegIds.add(s.id);
+      continue;
+    }
+    const lo = s.from < s.to ? s.from : s.to;
+    const hi = s.from < s.to ? s.to : s.from;
+    const key = `${lo}-${hi}`;
+    if (seenPairs.has(key)) {
+      droppedSegIds.add(s.id);
+    } else {
+      seenPairs.set(key, s.id);
+      uniqueSegs.push(s);
+    }
+  }
+  const components = wire.components.filter((c) => !droppedSegIds.has(c.segmentId));
+  return {
+    ...wire,
+    vertices: wire.vertices.filter((v) => v.id !== fromId),
+    segments: uniqueSegs,
+    components,
+  };
+}
+
+/**
+ * Place a stand-alone component centered at (x, y), oriented horizontally.
+ * Creates two free wire vertices at the component's terminals and a
+ * dedicated wire segment between them. Returns the new wire plus the
+ * component id (so callers can select it).
+ */
+export function placeStandaloneComponent(wire, x, y, type) {
+  const half = COMPONENT_LENGTH / 2;
+  const vAId = wire.nextVertexId;
+  const vBId = wire.nextVertexId + 1;
+  const segId = `s${wire.nextSegmentId}`;
+  const compId = `c${wire.nextComponentId}`;
+  const value = nextComponentSymbol(wire.components, type);
+  return {
+    wire: {
+      ...wire,
+      vertices: [
+        ...wire.vertices,
+        { id: vAId, x: x - half, y },
+        { id: vBId, x: x + half, y },
+      ],
+      segments: [...wire.segments, { id: segId, from: vAId, to: vBId }],
+      components: [
+        ...wire.components,
+        { id: compId, segmentId: segId, t: 0.5, type, value },
+      ],
+      nextVertexId: vBId + 1,
+      nextSegmentId: wire.nextSegmentId + 1,
+      nextComponentId: wire.nextComponentId + 1,
+    },
+    componentId: compId,
   };
 }
 

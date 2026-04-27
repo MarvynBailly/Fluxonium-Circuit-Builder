@@ -7,7 +7,7 @@
  * diagram. Schematic-mode exports preserve node positions directly.
  */
 
-import { adjacencyMatrix } from '../physics/hamiltonian.js';
+import { adjacencyMatrix, capacitanceMatrix, formatSymbolicSum } from '../physics/hamiltonian.js';
 
 /**
  * @param {Array} nodes - analysis-level nodes (electrical nodes)
@@ -19,6 +19,8 @@ import { adjacencyMatrix } from '../physics/hamiltonian.js';
  */
 export function buildExportPayload(nodes, edges, extra = {}) {
   const adj = adjacencyMatrix(nodes, edges);
+  const cap = capacitanceMatrix(nodes, edges);
+  const capacitance = cap.cells.map((row) => row.map((cell) => formatSymbolicSum(cell)));
 
   const payload = {
     _meta: {
@@ -41,6 +43,10 @@ export function buildExportPayload(nodes, edges, extra = {}) {
       unit: e.type === 'C' ? 'fF' : e.type === 'L' ? 'nH' : 'GHz',
     })),
     adjacency_matrix: adj.matrix,
+    capacitance_matrix: {
+      node_order: cap.nodeList.map((n) => n.id),
+      cells: capacitance,
+    },
   };
 
   if (extra.schematicNodes) {

@@ -299,7 +299,6 @@
     <li><a href="#step-15">Pan, zoom, and resizable panels</a></li>
     <li><a href="#step-16">Keyboard ergonomics</a></li>
     <li><a href="#step-17">JSON round-trip with full geometry</a></li>
-    <li><a href="#step-18">What's next</a></li>
   </ol>
 </nav>
 
@@ -814,23 +813,6 @@ export function formatSymbolicSum(parts) {
   <div class="callout tip">
     <div class="callout-title">Why store only overrides, not all node state?</div>
     Auto-detection regenerates nodes deterministically from the wire graph, so storing every node's auto-assigned <code>\phi_k</code> would be redundant &mdash; and worse, it would freeze label assignments in the file even if the graph topology changes after import. Persisting only what the user explicitly set lets the rest reflow.
-  </div>
-</section>
-
-<!-- ════════════════════ STEP 18 ════════════════════ -->
-<section class="step" data-step="18" id="step-18">
-  <h2>What's next</h2>
-  <p>
-    Multi-component series with virtual mid-segment nodes already work. The remaining items live in the gap between "topology" and "Hamiltonian numbers":
-  </p>
-  <ul>
-    <li><strong>External flux <code>&Phi;_ext</code> per loop.</strong> Detect cycles in the wire graph that contain at least one junction; let the user attach a flux to each one.</li>
-    <li><strong>Gate charge <code>n_g</code> per node.</strong> Per-node offset that enters as a shift in the conjugate number operator.</li>
-    <li><strong>Numeric-substitution toggle.</strong> Today the matrices are symbolic. A toggle would let the user enter actual GHz / fF / nH values and read back numerical capacitance, charging energies, and a fully evaluated Hamiltonian.</li>
-  </ul>
-  <div class="callout future">
-    <div class="callout-title">The unifying lens</div>
-    All three sit on top of the same wire-first foundation. Flux loops are cycles in the segment graph; gate charges are per-node attributes already carried through the auto-detect; numeric substitution is just a second formatter on the existing symbolic terms. None of them ask the data model to change &mdash; that is the point of having gotten the model right.
   </div>
 </section>
 

@@ -41,7 +41,17 @@ export default function NodeLabelsPanel({
   onUpdateComponent,
   width = 380,
   onResizeStart,
+  highlightedNodeId = null,
+  highlightedComponentId = null,
+  onHighlightNode,
+  onFocusItem,
+  onBlurItem,
+  onSetAllNodeColors,
+  onSetAllComponentColorsOfType,
 }) {
+  const focusNode = (id) => onFocusItem?.('node', id);
+  const focusComponent = (id) => onFocusItem?.('component', id);
+  const blurItem = () => onBlurItem?.();
   return (
     <div
       style={{
@@ -83,7 +93,35 @@ export default function NodeLabelsPanel({
       </div>
 
       <section>
-        {sectionHeader('var(--text-secondary)', 'ELECTRICAL NODES')}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            marginBottom: 8,
+          }}
+        >
+          <div
+            style={{
+              color: 'var(--text-secondary)',
+              fontWeight: 600,
+              fontSize: 11,
+              letterSpacing: 0.5,
+              flex: 1,
+            }}
+          >
+            ELECTRICAL NODES
+          </div>
+          {onSetAllNodeColors && nodes.length > 0 && (
+            <input
+              type="color"
+              value={nodes[0].color || '#888888'}
+              onChange={(e) => onSetAllNodeColors(e.target.value)}
+              title="Set color for all nodes"
+              style={colorSwatchStyle}
+            />
+          )}
+        </div>
         <div style={{ overflowX: 'auto' }}>
           {nodes.length === 0 ? (
             <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>
@@ -91,31 +129,29 @@ export default function NodeLabelsPanel({
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 220 }}>
-              {nodes.map((n) => (
+              {nodes.map((n) => {
+                const isHighlighted = highlightedNodeId === n.id;
+                return (
                 <div
                   key={n.id}
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: 'auto 22px minmax(0, 1fr) auto',
+                    gridTemplateColumns: '22px minmax(0, 1fr) auto',
                     alignItems: 'center',
                     gap: 6,
+                    padding: '2px 4px',
+                    borderRadius: 4,
+                    background: isHighlighted ? 'var(--bg-input)' : 'transparent',
+                    boxShadow: isHighlighted ? `inset 3px 0 0 ${n.color || 'var(--accent-blue)'}` : 'none',
                   }}
                 >
-                  <span
-                    style={{
-                      color: 'var(--text-muted)',
-                      fontSize: 13,
-                      minWidth: 24,
-                      textAlign: 'right',
-                    }}
-                  >
-                    #{n.id}
-                  </span>
                   {n.color !== undefined ? (
                     <input
                       type="color"
                       value={n.color}
                       onChange={(e) => onUpdateNode(n.id, { color: e.target.value })}
+                      onFocus={() => focusNode(n.id)}
+                      onBlur={blurItem}
                       title="Node color"
                       style={colorSwatchStyle}
                     />
@@ -125,6 +161,8 @@ export default function NodeLabelsPanel({
                   <input
                     value={n.label}
                     onChange={(e) => onUpdateNode(n.id, { label: e.target.value })}
+                    onFocus={() => focusNode(n.id)}
+                    onBlur={blurItem}
                     placeholder="auto"
                     style={{
                       ...baseInputStyle,
@@ -151,7 +189,8 @@ export default function NodeLabelsPanel({
                     ⏚
                   </label>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -169,18 +208,39 @@ export default function NodeLabelsPanel({
               const ofType = components.filter((c) => c.type === typeKey);
               if (ofType.length === 0) return null;
               const info = ELEMENT_TYPES[typeKey];
+              const groupColor = ofType[0].color || info.color;
               return (
                 <div key={typeKey} style={{ marginTop: 12 }}>
                   <div
                     style={{
-                      color: 'var(--text-muted)',
-                      fontSize: 11,
-                      letterSpacing: 0.5,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
                       marginBottom: 6,
-                      textTransform: 'uppercase',
                     }}
                   >
-                    {info.label}
+                    <div
+                      style={{
+                        color: 'var(--text-muted)',
+                        fontSize: 11,
+                        letterSpacing: 0.5,
+                        textTransform: 'uppercase',
+                        flex: 1,
+                      }}
+                    >
+                      {info.label}
+                    </div>
+                    {onSetAllComponentColorsOfType && (
+                      <input
+                        type="color"
+                        value={groupColor}
+                        onChange={(e) =>
+                          onSetAllComponentColorsOfType(typeKey, e.target.value)
+                        }
+                        title={`Set color for all ${info.label.toLowerCase()}`}
+                        style={colorSwatchStyle}
+                      />
+                    )}
                   </div>
                   <div style={{ overflowX: 'auto' }}>
                     <div
@@ -188,6 +248,7 @@ export default function NodeLabelsPanel({
                     >
                       {ofType.map((c) => {
                         const color = c.color || info.color;
+                        const isHighlighted = highlightedComponentId === c.id;
                         return (
                           <div
                             key={c.id}
@@ -196,6 +257,10 @@ export default function NodeLabelsPanel({
                               gridTemplateColumns: 'auto 22px minmax(0, 1fr)',
                               alignItems: 'center',
                               gap: 6,
+                              padding: '2px 4px',
+                              borderRadius: 4,
+                              background: isHighlighted ? 'var(--bg-input)' : 'transparent',
+                              boxShadow: isHighlighted ? `inset 3px 0 0 ${color}` : 'none',
                             }}
                           >
                             <span
@@ -215,6 +280,8 @@ export default function NodeLabelsPanel({
                               onChange={(e) =>
                                 onUpdateComponent(c.id, { color: e.target.value })
                               }
+                              onFocus={() => focusComponent(c.id)}
+                              onBlur={blurItem}
                               title="Component color"
                               style={colorSwatchStyle}
                             />
@@ -223,6 +290,8 @@ export default function NodeLabelsPanel({
                               onChange={(e) =>
                                 onUpdateComponent(c.id, { value: e.target.value })
                               }
+                              onFocus={() => focusComponent(c.id)}
+                              onBlur={blurItem}
                               placeholder={`${info.symbol}_{i}`}
                               style={{ ...baseInputStyle, color: 'var(--text-primary)' }}
                             />

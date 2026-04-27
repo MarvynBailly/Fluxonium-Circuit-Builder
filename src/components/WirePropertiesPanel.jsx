@@ -83,7 +83,7 @@ export default function WirePropertiesPanel({
       <div style={panelStyle}>
         <div style={headerStyle}>WIRE VERTEX</div>
         <div style={{ color: 'var(--text-muted)', fontSize: 11, marginBottom: 12 }}>
-          Visual turning point. Real electrical nodes are populated by Detect Nodes.
+          Visual turning point
         </div>
         <button onClick={onDelete} style={deleteStyle}>
           Delete vertex
