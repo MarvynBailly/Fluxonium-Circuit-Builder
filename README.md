@@ -28,8 +28,8 @@ See `blog.html` and `blog2.html` for the design notes behind the original editor
 ## Building from source
 
 ```bash
-git clone https://github.com/MarvynBailly/Fluxonium-Circuit-Builder.git
-cd Fluxonium-Circuit-Builder
+git clone https://github.com/MarvynBailly/Quantum-Circuit-Builder.git
+cd Quantum-Circuit-Builder
 npm install
 npm run dev
 ```
