@@ -11,7 +11,7 @@ export default function Vertices({
   vertexNodeId,
   colorForNode,
   drawingFromVertexId,
-  selected,
+  isSelected,
   hover,
   selectedTool,
   highlightedNodeId,
@@ -21,16 +21,16 @@ export default function Vertices({
     <>
       {wire.vertices.map((v) => {
         const isDrawingFrom = drawingFromVertexId === v.id;
-        const isSelected = selected?.kind === 'wireVertex' && selected.id === v.id;
+        const vertexSelected = isSelected('wireVertex', v.id);
         const isHover = hover?.kind === 'vertex' && hover.id === v.id;
         const myNodeId = vertexNodeId.get(v.id);
         const isWired = myNodeId !== undefined;
         const isHighlighted = highlightedNodeId !== null && myNodeId === highlightedNodeId;
         const baseR = isWired ? VERTEX_RADIUS : TERMINAL_RADIUS;
-        const r = isDrawingFrom || isSelected || isHover ? VERTEX_HOVER_RADIUS : baseR;
+        const r = isDrawingFrom || vertexSelected || isHover ? VERTEX_HOVER_RADIUS : baseR;
         const fill = isDrawingFrom
           ? 'var(--accent-amber)'
-          : isSelected
+          : vertexSelected
             ? 'var(--accent-blue)'
             : isHover
               ? 'var(--accent-amber)'

@@ -18,6 +18,7 @@ import {
 } from './circuit/index.js';
 import {
   EMPTY_WIRE,
+  GRID,
   SNAP_RADIUS,
   WIRE_DEFAULT,
   WIRE_DEFAULT_ANALYSIS,
@@ -31,8 +32,11 @@ import {
   gluCoincidentVertices,
   mergeVertexIntoWire,
   moveComponentCenter,
+  pasteSelection,
   placeStandaloneComponent,
   removeComponent,
+  rotateSelection,
+  serializeSelection,
   setComponentColor,
   setComponentType,
   setComponentValue,
@@ -61,11 +65,47 @@ export default function App() {
   const [drawingFromVertexId, setDrawingFromVertexId] = useState(null);
   const [hover, setHover] = useState(null);
 
-  const [selected, setSelected] = useState(null);
+  // Selection model: an array of {kind/type, id} entries. Single-click
+  // sets it to one entry; shift-click toggles entries in place.
+  // `selected` is the convenience single-item view used by the
+  // properties panel and other one-at-a-time UI.
+  const [selection, setSelection] = useState([]);
+  const selected = selection.length === 1 ? selection[0] : null;
+  const setSelected = useCallback(
+    (item) => setSelection(item ? [item] : []),
+    [],
+  );
+  const toggleSelection = useCallback((item) => {
+    setSelection((prev) => {
+      const i = prev.findIndex(
+        (s) =>
+          s.id === item.id &&
+          (s.kind ?? s.type) === (item.kind ?? item.type),
+      );
+      if (i >= 0) return prev.filter((_, idx) => idx !== i);
+      return [...prev, item];
+    });
+  }, []);
+  // In-memory clipboard. paste counter spreads multiple pastes
+  // diagonally so they don't all stack at the same offset.
+  const clipboardRef = useRef(null);
+  const pasteCountRef = useRef(0);
   const [selectedTool, setSelectedTool] = useState(null);
   const [connectFrom, setConnectFrom] = useState(null);
   const [dragging, setDragging] = useState(null);
   const [draggingComponentId, setDraggingComponentId] = useState(null);
+  // Multi-drag: when a vertex / component that's part of a 2+ item
+  // selection is grabbed, every selected vertex (plus endpoints of
+  // selected wires/components) translates together. Snapshot of
+  // start positions lives in a ref so per-frame updates don't churn
+  // through React state.
+  const [multiDragging, setMultiDragging] = useState(false);
+  const multiDragRef = useRef(null);
+  // Box-select rectangle. Started by Ctrl+drag on the canvas; on
+  // release every vertex inside (and any wire/component whose both
+  // endpoints are inside) joins the selection. With Shift held the
+  // rectangle adds to the existing selection instead of replacing it.
+  const [boxSelect, setBoxSelect] = useState(null);
   // Offset from cursor to component center at drag start (so the
   // component stays under the cursor at the same relative position).
   const componentDragOffset = useRef({ x: 0, y: 0 });
@@ -118,7 +158,7 @@ export default function App() {
     wire,
     wireNodes,
     wireEdges,
-    dragging: dragging ?? draggingComponentId,
+    dragging: dragging ?? draggingComponentId ?? (multiDragging ? 'multi' : null),
     setNodes,
     setEdges,
     setWire,
@@ -219,21 +259,63 @@ export default function App() {
   }, [selected]);
 
   const deleteSelected = useCallback(() => {
-    if (!selected) return;
-    if (selected.type === 'edge') {
-      setEdges((prev) => prev.filter((e) => e.id !== selected.id));
-    } else if (selected.type === 'node') {
-      setEdges((prev) => prev.filter((e) => e.from !== selected.id && e.to !== selected.id));
-      setNodes((prev) => prev.filter((n) => n.id !== selected.id));
-    } else if (selected.kind === 'wireComponent') {
-      setWire((w) => removeComponent(w, selected.id));
-    } else if (selected.kind === 'wire') {
-      setWire((w) => deleteWireEdge(w, selected.id));
-    } else if (selected.kind === 'wireVertex') {
-      setWire((w) => deleteWireVertex(w, selected.id));
+    if (selection.length === 0) return;
+    // Schematic-mode entries (type: 'edge' / 'node') and wire-mode
+    // entries (kind: 'wire*') can both appear in `selection`. Bucket
+    // them so we apply each kind in one pass.
+    const schEdges = selection.filter((s) => s.type === 'edge').map((s) => s.id);
+    const schNodes = selection.filter((s) => s.type === 'node').map((s) => s.id);
+    if (schEdges.length || schNodes.length) {
+      const nodeSet = new Set(schNodes);
+      const edgeSet = new Set(schEdges);
+      setEdges((prev) =>
+        prev.filter((e) => !edgeSet.has(e.id) && !nodeSet.has(e.from) && !nodeSet.has(e.to)),
+      );
+      if (schNodes.length) setNodes((prev) => prev.filter((n) => !nodeSet.has(n.id)));
     }
-    setSelected(null);
-  }, [selected]);
+
+    const wireComps = selection.filter((s) => s.kind === 'wireComponent').map((s) => s.id);
+    const wireWires = selection.filter((s) => s.kind === 'wire').map((s) => s.id);
+    const wireVerts = selection.filter((s) => s.kind === 'wireVertex').map((s) => s.id);
+    if (wireComps.length || wireWires.length || wireVerts.length) {
+      setWire((w) => {
+        let next = w;
+        for (const id of wireComps) next = removeComponent(next, id);
+        for (const id of wireWires) next = deleteWireEdge(next, id);
+        for (const id of wireVerts) next = deleteWireVertex(next, id);
+        return next;
+      });
+    }
+    setSelection([]);
+  }, [selection]);
+
+  // ---- copy / paste / rotate ----
+
+  const copySelection = useCallback(() => {
+    if (mode !== 'wire' || selection.length === 0) return;
+    clipboardRef.current = serializeSelection(wire, selection);
+    pasteCountRef.current = 0;
+  }, [mode, wire, selection]);
+
+  const pasteClipboard = useCallback(() => {
+    if (mode !== 'wire' || !clipboardRef.current) return;
+    pasteCountRef.current += 1;
+    const offset = pasteCountRef.current * GRID;
+    setWire((w) => {
+      const r = pasteSelection(w, clipboardRef.current, offset, offset);
+      setSelection(r.selection);
+      return r.wire;
+    });
+  }, [mode]);
+
+  const rotateSelectionBy = useCallback(
+    (clockwise) => {
+      if (mode !== 'wire' || selection.length === 0) return;
+      const angle = (clockwise ? 1 : -1) * (Math.PI / 2);
+      setWire((w) => rotateSelection(w, selection, angle));
+    },
+    [mode, selection],
+  );
 
   const handleSelectTool = useCallback((toolId) => {
     setSelectedTool((prev) => (prev === toolId ? null : toolId));
@@ -258,6 +340,9 @@ export default function App() {
     redo,
     onEscape: handleEscape,
     onDelete: deleteSelected,
+    onCopy: copySelection,
+    onPaste: pasteClipboard,
+    onRotate: rotateSelectionBy,
   });
 
   // ---- wire-mode hover dispatch ----
@@ -320,23 +405,35 @@ export default function App() {
         return;
       }
 
-      // No tool — selection / deselection.
-      if (h?.kind === 'vertex') {
-        setSelected({ kind: 'wireVertex', id: h.id });
-        const owner = wireNodes.find((n) => n.vertexIds?.includes(h.id));
-        if (owner) handleHighlightNode(owner.id);
-        else clearHighlights();
-      } else if (h?.kind === 'component') {
-        setSelected({ kind: 'wireComponent', id: h.id });
-        handleHighlightComponent(h.id);
-      } else if (h?.kind === 'wire') {
-        setSelected({ kind: 'wire', id: h.wireId });
-        const w = wire.wires.find((e) => e.id === h.wireId);
-        const owner = w
-          ? wireNodes.find((n) => n.vertexIds?.includes(w.from))
-          : null;
-        if (owner) handleHighlightNode(owner.id);
-        else clearHighlights();
+      // No tool — selection / deselection. Shift+click toggles into
+      // a multi-selection without disturbing the existing items
+      // (used as the source for copy / rotate / batch delete).
+      let item = null;
+      if (h?.kind === 'vertex') item = { kind: 'wireVertex', id: h.id };
+      else if (h?.kind === 'component') item = { kind: 'wireComponent', id: h.id };
+      else if (h?.kind === 'wire') item = { kind: 'wire', id: h.wireId };
+
+      if (shiftKey) {
+        if (item) toggleSelection(item);
+        return;
+      }
+
+      if (item) {
+        setSelected(item);
+        if (item.kind === 'wireVertex') {
+          const owner = wireNodes.find((n) => n.vertexIds?.includes(item.id));
+          if (owner) handleHighlightNode(owner.id);
+          else clearHighlights();
+        } else if (item.kind === 'wireComponent') {
+          handleHighlightComponent(item.id);
+        } else if (item.kind === 'wire') {
+          const w = wire.wires.find((e) => e.id === item.id);
+          const owner = w
+            ? wireNodes.find((n) => n.vertexIds?.includes(w.from))
+            : null;
+          if (owner) handleHighlightNode(owner.id);
+          else clearHighlights();
+        }
       } else {
         setSelected(null);
         clearHighlights();
@@ -348,6 +445,8 @@ export default function App() {
       wire,
       wireNodes,
       drawingFromVertexId,
+      toggleSelection,
+      setSelected,
       handleHighlightNode,
       handleHighlightComponent,
       clearHighlights,
@@ -552,6 +651,55 @@ export default function App() {
         return;
       }
 
+      if (boxSelect) {
+        didDragRef.current = true;
+        setBoxSelect((b) => (b ? { ...b, x: pt.x, y: pt.y } : b));
+        return;
+      }
+
+      if (multiDragging && multiDragRef.current) {
+        didDragRef.current = true;
+        const md = multiDragRef.current;
+        let dx = pt.x - md.startCursor.x;
+        let dy = pt.y - md.startCursor.y;
+        if (!e.shiftKey) {
+          // Grid-snap the delta first so the group lands on grid.
+          dx = Math.round(dx / GRID) * GRID;
+          dy = Math.round(dy / GRID) * GRID;
+          // Then look for any moved vertex whose grid-snapped position
+          // would land within snap radius of a stationary vertex; if
+          // found, adjust the whole delta so that pair coincides
+          // exactly. This is what makes tiled cells click into place.
+          let bestD = SNAP_RADIUS;
+          let bestSnap = null;
+          for (const [vid, start] of md.startPositions) {
+            const cx = start.x + dx;
+            const cy = start.y + dy;
+            for (const sv of wire.vertices) {
+              if (md.startPositions.has(sv.id)) continue;
+              const d = Math.hypot(sv.x - cx, sv.y - cy);
+              if (d < bestD) {
+                bestD = d;
+                bestSnap = { dx: sv.x - start.x, dy: sv.y - start.y };
+              }
+            }
+          }
+          if (bestSnap) {
+            dx = bestSnap.dx;
+            dy = bestSnap.dy;
+          }
+        }
+        setWire((w) => ({
+          ...w,
+          vertices: w.vertices.map((v) => {
+            const start = md.startPositions.get(v.id);
+            if (!start) return v;
+            return { ...v, x: start.x + dx, y: start.y + dy };
+          }),
+        }));
+        return;
+      }
+
       if (draggingComponentId !== null) {
         didDragRef.current = true;
         // Where the user wants the component center to be.
@@ -615,12 +763,88 @@ export default function App() {
         setHover(hoverFor(pt, e.shiftKey));
       }
     },
-    [dragging, draggingComponentId, panZoom, panel, leftPanel, mode, hoverFor],
+    [dragging, draggingComponentId, multiDragging, boxSelect, wire, panZoom, panel, leftPanel, mode, hoverFor],
   );
 
   const onMouseUp = useCallback(() => {
     panZoom.endPan();
-    if (dragging !== null && mode === 'wire') {
+    if (boxSelect) {
+      const minX = Math.min(boxSelect.startX, boxSelect.x);
+      const maxX = Math.max(boxSelect.startX, boxSelect.x);
+      const minY = Math.min(boxSelect.startY, boxSelect.y);
+      const maxY = Math.max(boxSelect.startY, boxSelect.y);
+      const inside = (v) =>
+        v.x >= minX && v.x <= maxX && v.y >= minY && v.y <= maxY;
+      const vSet = new Set(wire.vertices.filter(inside).map((v) => v.id));
+      const items = [];
+      for (const id of vSet) items.push({ kind: 'wireVertex', id });
+      for (const w of wire.wires) {
+        if (vSet.has(w.from) && vSet.has(w.to)) items.push({ kind: 'wire', id: w.id });
+      }
+      for (const c of wire.components) {
+        if (vSet.has(c.from) && vSet.has(c.to)) items.push({ kind: 'wireComponent', id: c.id });
+      }
+      if (boxSelect.additive) {
+        setSelection((prev) => {
+          const have = new Set(prev.map((s) => `${s.kind ?? s.type}:${s.id}`));
+          return [...prev, ...items.filter((it) => !have.has(`${it.kind}:${it.id}`))];
+        });
+      } else {
+        setSelection(items);
+      }
+      setBoxSelect(null);
+      return;
+    }
+    if (multiDragging && multiDragRef.current && mode === 'wire') {
+      // Fuse any moved vertex now coincident with a stationary one.
+      // Same gluCoincidentVertices call used for single-vertex drag —
+      // it handles the wire-separation invariant when two component
+      // endpoints would otherwise share a vertex.
+      const md = multiDragRef.current;
+      const movedIds = new Set(md.startPositions.keys());
+      setWire((w) => {
+        const matches = [];
+        for (const mid of movedIds) {
+          const mv = w.vertices.find((v) => v.id === mid);
+          if (!mv) continue;
+          const target = w.vertices.find(
+            (v) =>
+              !movedIds.has(v.id) &&
+              Math.hypot(v.x - mv.x, v.y - mv.y) < 0.5,
+          );
+          if (target) matches.push({ movedId: mid, intoId: target.id });
+        }
+        if (matches.length === 0) return w;
+        let next = w;
+        for (const m of matches) next = gluCoincidentVertices(next, m.movedId, m.intoId);
+        // Update the selection: any vertex that was absorbed is
+        // replaced by the stationary it merged into; wires/components
+        // de-duped by the merge are dropped.
+        const absorbed = new Map(matches.map((m) => [m.movedId, m.intoId]));
+        const validV = new Set(next.vertices.map((v) => v.id));
+        const validW = new Set(next.wires.map((wr) => wr.id));
+        const validC = new Set(next.components.map((c) => c.id));
+        setSelection((prev) => {
+          const out = [];
+          const seen = new Set();
+          for (const s of prev) {
+            let item = s;
+            if (s.kind === 'wireVertex') {
+              const into = absorbed.get(s.id);
+              if (into !== undefined) item = { kind: 'wireVertex', id: into };
+              else if (!validV.has(s.id)) continue;
+            } else if (s.kind === 'wire' && !validW.has(s.id)) continue;
+            else if (s.kind === 'wireComponent' && !validC.has(s.id)) continue;
+            const key = `${item.kind ?? item.type}:${item.id}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            out.push(item);
+          }
+          return out;
+        });
+        return next;
+      });
+    } else if (dragging !== null && mode === 'wire') {
       const draggedId = dragging;
       setWire((w) => {
         const dv = w.vertices.find((v) => v.id === draggedId);
@@ -635,12 +859,17 @@ export default function App() {
     }
     setDragging(null);
     setDraggingComponentId(null);
-  }, [panZoom, dragging, mode]);
+    setMultiDragging(false);
+    multiDragRef.current = null;
+  }, [panZoom, dragging, multiDragging, mode, boxSelect, wire, setSelected]);
 
   const onMouseLeave = useCallback(() => {
     panZoom.endPan();
     setDragging(null);
     setDraggingComponentId(null);
+    setMultiDragging(false);
+    multiDragRef.current = null;
+    setBoxSelect(null);
     setHover(null);
   }, [panZoom]);
 
@@ -670,27 +899,91 @@ export default function App() {
     setHover(null);
   }, []);
 
+  /** Start a multi-item drag if the grabbed item is part of a 2+
+   *  selection. Returns true when multi-drag was started. */
+  const startMultiDrag = useCallback(
+    (item, cursorPt) => {
+      if (selection.length < 2) return false;
+      const inSelection = selection.some(
+        (s) => (s.kind ?? s.type) === item.kind && s.id === item.id,
+      );
+      if (!inSelection) return false;
+      const vIds = new Set();
+      for (const s of selection) {
+        if (s.kind === 'wireVertex') vIds.add(s.id);
+      }
+      const wIdSet = new Set(selection.filter((s) => s.kind === 'wire').map((s) => s.id));
+      const cIdSet = new Set(
+        selection.filter((s) => s.kind === 'wireComponent').map((s) => s.id),
+      );
+      for (const w of wire.wires) {
+        if (wIdSet.has(w.id)) {
+          vIds.add(w.from);
+          vIds.add(w.to);
+        }
+      }
+      for (const c of wire.components) {
+        if (cIdSet.has(c.id)) {
+          vIds.add(c.from);
+          vIds.add(c.to);
+        }
+      }
+      if (vIds.size === 0) return false;
+      const startPositions = new Map();
+      for (const v of wire.vertices) {
+        if (vIds.has(v.id)) startPositions.set(v.id, { x: v.x, y: v.y });
+      }
+      multiDragRef.current = { startCursor: cursorPt, startPositions };
+      setMultiDragging(true);
+      return true;
+    },
+    [selection, wire],
+  );
+
   const onWireVertexMouseDown = useCallback(
     (vertexId, e) => {
       if (e.button !== 0) return;
+      // Ctrl is reserved for the box-select rectangle started at the
+      // canvas level — let the event bubble there.
+      if (e.ctrlKey || e.metaKey) return;
       e.preventDefault();
       e.stopPropagation();
+      setHover(null);
+      // Shift-click is reserved for the multi-selection toggle in
+      // handleWireClick — leave the existing selection and highlights
+      // alone here so we don't wipe them before the click fires.
+      if (e.shiftKey) {
+        setDragging(vertexId);
+        return;
+      }
+      // Multi-drag if this vertex is part of an existing multi-select.
+      if (startMultiDrag({ kind: 'wireVertex', id: vertexId }, panZoom.svgPoint(e))) {
+        return;
+      }
       setDragging(vertexId);
       setSelected({ kind: 'wireVertex', id: vertexId });
-      setHover(null);
       const owner = wireNodes.find((n) => n.vertexIds?.includes(vertexId));
       if (owner) handleHighlightNode(owner.id);
       else clearHighlights();
     },
-    [wireNodes, handleHighlightNode, clearHighlights],
+    [wireNodes, setSelected, handleHighlightNode, clearHighlights, startMultiDrag, panZoom],
   );
 
   const onWireComponentMouseDown = useCallback(
     (componentId, e) => {
       if (e.button !== 0) return;
       if (selectedTool) return;
+      // Ctrl is reserved for the box-select rectangle.
+      if (e.ctrlKey || e.metaKey) return;
       e.preventDefault();
       e.stopPropagation();
+      setHover(null);
+      // Multi-drag if this component is part of an existing multi-select.
+      // Skip the per-component drag-offset bookkeeping in that case —
+      // the multi-drag handler tracks cursor delta directly.
+      if (!e.shiftKey && startMultiDrag({ kind: 'wireComponent', id: componentId }, panZoom.svgPoint(e))) {
+        return;
+      }
       const c = wire.components.find((cc) => cc.id === componentId);
       if (c) {
         const a = wire.vertices.find((v) => v.id === c.from);
@@ -703,11 +996,13 @@ export default function App() {
         }
       }
       setDraggingComponentId(componentId);
+      // Shift-click toggles into the multi-selection via the click
+      // handler — keep state untouched here.
+      if (e.shiftKey) return;
       setSelected({ kind: 'wireComponent', id: componentId });
-      setHover(null);
       handleHighlightComponent(componentId);
     },
-    [selectedTool, wire, panZoom, handleHighlightComponent],
+    [selectedTool, wire, panZoom, setSelected, handleHighlightComponent, startMultiDrag],
   );
 
   // ---- render ----
@@ -777,6 +1072,22 @@ export default function App() {
               if (document.activeElement && document.activeElement !== document.body) {
                 document.activeElement.blur();
               }
+              // Ctrl+left starts a box-select rectangle. The vertex /
+              // component handlers already opt out when Ctrl is held,
+              // so this branch fires whether the cursor is over an
+              // item or empty space. Shift extends instead of replaces.
+              if (e.button === 0 && (e.ctrlKey || e.metaKey) && isWireMode) {
+                e.preventDefault();
+                const pt = panZoom.svgPoint(e);
+                setBoxSelect({
+                  startX: pt.x,
+                  startY: pt.y,
+                  x: pt.x,
+                  y: pt.y,
+                  additive: e.shiftKey,
+                });
+                return;
+              }
               panZoom.onCanvasMouseDown(e);
             }}
             onClick={onCanvasClick}
@@ -812,7 +1123,7 @@ export default function App() {
                   drawingFromVertexId={drawingFromVertexId}
                   hover={hover}
                   selectedTool={selectedTool}
-                  selected={selected}
+                  selection={selection}
                   onVertexMouseDown={onWireVertexMouseDown}
                   onComponentMouseDown={onWireComponentMouseDown}
                   showLabels={showEdgeLabels}
@@ -852,6 +1163,20 @@ export default function App() {
                     />
                   ))}
                 </>
+              )}
+              {boxSelect && (
+                <rect
+                  x={Math.min(boxSelect.startX, boxSelect.x)}
+                  y={Math.min(boxSelect.startY, boxSelect.y)}
+                  width={Math.abs(boxSelect.x - boxSelect.startX)}
+                  height={Math.abs(boxSelect.y - boxSelect.startY)}
+                  fill="var(--accent-blue)"
+                  fillOpacity={0.1}
+                  stroke="var(--accent-blue)"
+                  strokeWidth={1.5 / Math.max(panZoom.zoom, 0.0001)}
+                  strokeDasharray={`${4 / Math.max(panZoom.zoom, 0.0001)} ${3 / Math.max(panZoom.zoom, 0.0001)}`}
+                  pointerEvents="none"
+                />
               )}
             </g>
           </svg>

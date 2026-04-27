@@ -57,11 +57,17 @@ npm run dev
 | Key | Action |
 |---|---|
 | `Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y` | Undo / redo |
+| `Ctrl+C` / `Ctrl+V` | Copy / paste current selection (paste lands offset; press repeatedly to chain) |
+| `Ctrl+Q` / `Ctrl+Shift+Q` | Rotate selection 90° counter-clockwise / clockwise around its centroid |
 | `Esc` | Clear active tool, then deselect |
-| `Delete` / `Backspace` | Remove current selection |
-| `Shift` (held) | Break grid / fraction snap |
+| `Delete` / `Backspace` | Remove current selection (every item in a multi-select) |
+| `Shift`+click | Add/remove from selection (no tool active) |
+| `Ctrl`+drag | Box-select: rectangle picks every vertex inside (and any wire/component whose both endpoints are inside). Add `Shift` to extend the existing selection instead of replacing it. |
+| `Shift` (held) | Break grid / fraction snap during placement & drag |
 | Right-click | Drop active tool |
 | Middle-click drag / wheel | Pan / zoom |
+
+> Use `Cmd` instead of `Ctrl` on macOS — shortcuts respect `metaKey`.
 
 ## Project layout
 

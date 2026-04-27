@@ -45,4 +45,6 @@ export { autoDetectNodes } from './electricalNodes.js';
 
 export { computeHover } from './hover.js';
 
+export { serializeSelection, pasteSelection, rotateSelection } from './clipboard.js';
+
 export { WIRE_DEFAULT, WIRE_DEFAULT_ANALYSIS } from './defaults.js';

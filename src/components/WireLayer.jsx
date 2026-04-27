@@ -12,6 +12,9 @@ import HoverPreview from './wire/HoverPreview.jsx';
  * canvas level using the parent's hover state, so this layer paints
  * visuals (vertices and component bodies have mouse-down handlers
  * for drag).
+ *
+ * `selection` is the multi-selection array; an internal lookup is
+ * built once so subcomponents can do O(1) selected-checks.
  */
 export default function WireLayer({
   wire,
@@ -19,7 +22,7 @@ export default function WireLayer({
   drawingFromVertexId,
   hover,
   selectedTool,
-  selected,
+  selection = [],
   onVertexMouseDown,
   onComponentMouseDown,
   showLabels = true,
@@ -43,6 +46,13 @@ export default function WireLayer({
   const colorForNode = (id) =>
     id === undefined ? 'var(--text-secondary)' : nodeById.get(id)?.color ?? 'var(--text-secondary)';
 
+  // Selection lookup: stringified "kind:id" keys.
+  const selectedKeys = new Set();
+  for (const s of selection) {
+    if (s.kind) selectedKeys.add(`${s.kind}:${s.id}`);
+  }
+  const isSelected = (kind, id) => selectedKeys.has(`${kind}:${id}`);
+
   // Inverse-zoom factor for keeping labels at constant on-screen size.
   const labelScale = 1 / Math.max(zoom, 0.0001);
 
@@ -53,7 +63,7 @@ export default function WireLayer({
         vById={vById}
         vertexNodeId={vertexNodeId}
         colorForNode={colorForNode}
-        selected={selected}
+        isSelected={isSelected}
         highlightedNodeId={highlightedNodeId}
       />
       <Components
@@ -61,7 +71,7 @@ export default function WireLayer({
         vById={vById}
         vertexNodeId={vertexNodeId}
         colorForNode={colorForNode}
-        selected={selected}
+        isSelected={isSelected}
         selectedTool={selectedTool}
         highlightedComponentId={highlightedComponentId}
         showLabels={showLabels}
@@ -80,7 +90,7 @@ export default function WireLayer({
         vertexNodeId={vertexNodeId}
         colorForNode={colorForNode}
         drawingFromVertexId={drawingFromVertexId}
-        selected={selected}
+        isSelected={isSelected}
         hover={hover}
         selectedTool={selectedTool}
         highlightedNodeId={highlightedNodeId}

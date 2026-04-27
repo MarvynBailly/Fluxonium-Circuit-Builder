@@ -1,7 +1,7 @@
 import React from 'react';
 
 /** Render the wire edges, tinted by their electrical-node color. */
-export default function Wires({ wire, vById, vertexNodeId, colorForNode, selected, highlightedNodeId }) {
+export default function Wires({ wire, vById, vertexNodeId, colorForNode, isSelected, highlightedNodeId }) {
   return (
     <>
       {wire.wires.map((w) => {
@@ -9,10 +9,10 @@ export default function Wires({ wire, vById, vertexNodeId, colorForNode, selecte
         const b = vById.get(w.to);
         if (!a || !b) return null;
         const nodeId = vertexNodeId.get(w.from);
-        const isSelected = selected?.kind === 'wire' && selected.id === w.id;
+        const wireSelected = isSelected('wire', w.id);
         const isHighlighted = highlightedNodeId !== null && nodeId === highlightedNodeId;
-        const stroke = isSelected ? 'var(--accent-blue)' : colorForNode(nodeId);
-        const sw = isSelected ? 3 : isHighlighted ? 3.5 : 2;
+        const stroke = wireSelected ? 'var(--accent-blue)' : colorForNode(nodeId);
+        const sw = wireSelected ? 3 : isHighlighted ? 3.5 : 2;
         return (
           <g key={w.id} pointerEvents="none">
             {isHighlighted && (

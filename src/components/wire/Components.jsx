@@ -12,7 +12,7 @@ export default function Components({
   vById,
   vertexNodeId,
   colorForNode,
-  selected,
+  isSelected,
   selectedTool,
   highlightedComponentId,
   showLabels,
@@ -28,7 +28,7 @@ export default function Components({
         if (!a || !b) return null;
         const leftNodeId = vertexNodeId.get(c.from);
         const rightNodeId = vertexNodeId.get(c.to);
-        const isSelected = selected?.kind === 'wireComponent' && selected.id === c.id;
+        const compSelected = isSelected('wireComponent', c.id);
         const isHighlighted = highlightedComponentId === c.id;
         const info = ELEMENT_TYPES[c.type];
         const compColor = c.color || info.color;
@@ -65,7 +65,7 @@ export default function Components({
                 opacity={0.4}
               />
             )}
-            {isSelected && (
+            {compSelected && (
               <line
                 x1={a.x}
                 y1={a.y}
