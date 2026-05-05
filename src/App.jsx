@@ -39,10 +39,13 @@ import {
   deleteWire as deleteWireEdge,
   gluCoincidentVertices,
   mergeVertexIntoWire,
+  addGround,
+  beginGroundAt,
   mirrorSelection,
   moveComponentCenter,
   pasteSelection,
   placeStandaloneComponent,
+  snapGroundOffset,
   removeComponent,
   renumberComponentsOfType,
   rotateSelection,
@@ -86,6 +89,15 @@ export default function App() {
     () => persisted?.wireEdges ?? WIRE_DEFAULT_ANALYSIS.edges,
   );
   const [drawingFromVertexId, setDrawingFromVertexId] = useState(null);
+  // Two-click ground placement: after the first click anchors to a
+  // vertex, this holds { vertexId, x, y } until the second click sets
+  // the ⏚ glyph's offset. Cleared by Escape, by switching tools, or
+  // by leaving wire mode.
+  const [placingGroundFor, setPlacingGroundFor] = useState(null);
+  // Live cursor (and shift state) during ground placement, so the
+  // ghost preview can rotate with the mouse without hooking into the
+  // generic hover system. Only set while placingGroundFor is active.
+  const [groundCursor, setGroundCursor] = useState(null);
   const [hover, setHover] = useState(null);
 
   // Selection model: an array of {kind/type, id} entries. Single-click
@@ -243,6 +255,8 @@ export default function App() {
       setSelected(null);
       setConnectFrom(null);
       setDrawingFromVertexId(null);
+      setPlacingGroundFor(null);
+      setGroundCursor(null);
       setHover(null);
       setSelectedTool(next === 'wire' ? 'wire' : null);
       if (next === 'schematic' && nodes.length === 0 && edges.length === 0) {
@@ -399,11 +413,16 @@ export default function App() {
     setSelectedTool((prev) => (prev === toolId ? null : toolId));
     setConnectFrom(null);
     setDrawingFromVertexId(null);
+    setPlacingGroundFor(null);
+    setGroundCursor(null);
     setHover(null);
   }, []);
 
   const handleEscape = useCallback(() => {
-    if (drawingFromVertexId !== null) {
+    if (placingGroundFor !== null) {
+      setPlacingGroundFor(null);
+      setGroundCursor(null);
+    } else if (drawingFromVertexId !== null) {
       setDrawingFromVertexId(null);
     } else if (selectedTool) {
       setSelectedTool(null);
@@ -411,7 +430,7 @@ export default function App() {
     } else if (selected) {
       setSelected(null);
     }
-  }, [selectedTool, selected, drawingFromVertexId]);
+  }, [selectedTool, selected, drawingFromVertexId, placingGroundFor]);
 
   useKeyboardShortcuts({
     undo,
@@ -489,6 +508,30 @@ export default function App() {
           // with two free terminal vertices.
           const base = shiftKey ? pt : snapToGrid(pt.x, pt.y);
           setWire((w) => placeStandaloneComponent(w, base.x, base.y, selectedTool).wire);
+        }
+        return;
+      }
+
+      if (selectedTool === 'GND') {
+        // Two-click placement. Click 1 anchors to a vertex (or splits
+        // the wire under the cursor); click 2 sets where the ⏚ glyph
+        // hangs relative to that vertex. Click 1 on an already-grounded
+        // vertex toggles the ground off instead of starting placement.
+        if (placingGroundFor === null) {
+          const r = beginGroundAt(wire, pt.x, pt.y);
+          if (r.wire !== wire) setWire(r.wire);
+          if (r.removed || r.vertexId === null) return;
+          const anchor = r.wire.vertices.find((v) => v.id === r.vertexId);
+          if (anchor) {
+            setPlacingGroundFor({ vertexId: r.vertexId, x: anchor.x, y: anchor.y });
+            setGroundCursor({ x: pt.x, y: pt.y, shiftKey });
+          }
+        } else {
+          const { vertexId, x: ax, y: ay } = placingGroundFor;
+          const off = snapGroundOffset(pt.x - ax, pt.y - ay, shiftKey);
+          setWire((w) => addGround(w, vertexId, off.dx, off.dy));
+          setPlacingGroundFor(null);
+          setGroundCursor(null);
         }
         return;
       }
@@ -891,9 +934,12 @@ export default function App() {
 
       if (mode === 'wire') {
         setHover(hoverFor(pt, e.shiftKey));
+        if (placingGroundFor !== null) {
+          setGroundCursor({ x: pt.x, y: pt.y, shiftKey: e.shiftKey });
+        }
       }
     },
-    [dragging, draggingComponentId, multiDragging, boxSelect, wire, panZoom, panel, leftPanel, mode, hoverFor],
+    [dragging, draggingComponentId, multiDragging, boxSelect, wire, panZoom, panel, leftPanel, mode, hoverFor, placingGroundFor],
   );
 
   const onMouseUp = useCallback(() => {
@@ -1057,6 +1103,8 @@ export default function App() {
     setSelectedTool(null);
     setConnectFrom(null);
     setDrawingFromVertexId(null);
+    setPlacingGroundFor(null);
+    setGroundCursor(null);
     setHover(null);
   }, []);
 
@@ -1203,6 +1251,7 @@ export default function App() {
         onSelectTool={handleSelectTool}
         connectFrom={connectFrom}
         drawingFromVertexId={drawingFromVertexId}
+        placingGroundFor={placingGroundFor}
         canUndo={canUndo}
         canRedo={canRedo}
         onUndo={undo}
@@ -1306,6 +1355,9 @@ export default function App() {
                   highlightedComponentId={effectiveHighlightedComponentId}
                   onHighlightNode={handleHighlightNode}
                   onHighlightComponent={handleHighlightComponent}
+                  placingGroundFor={placingGroundFor}
+                  cursor={groundCursor}
+                  shiftKey={groundCursor?.shiftKey ?? false}
                 />
               ) : (
                 <>

@@ -44,6 +44,17 @@ export {
 
 export { autoDetectNodes } from './electricalNodes.js';
 
+export {
+  addGround,
+  beginGroundAt,
+  DEFAULT_GROUND_OFFSET,
+  hasGround,
+  remapGroundsAfterMerge,
+  removeGround,
+  removeGroundsForVertex,
+  snapGroundOffset,
+} from './groundOps.js';
+
 export { computeHover } from './hover.js';
 
 export { serializeSelection, pasteSelection, rotateSelection, mirrorSelection } from './clipboard.js';

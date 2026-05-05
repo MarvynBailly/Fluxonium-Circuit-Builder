@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import Wires from './wire/Wires.jsx';
 import Components from './wire/Components.jsx';
+import Grounds from './wire/Grounds.jsx';
 import Vertices from './wire/Vertices.jsx';
 import NodeLabels from './wire/NodeLabels.jsx';
 import HoverPreview from './wire/HoverPreview.jsx';
@@ -36,6 +37,9 @@ export default function WireLayer({
   highlightedComponentId = null,
   onHighlightNode,
   onHighlightComponent,
+  placingGroundFor = null,
+  cursor = null,
+  shiftKey = false,
 }) {
   const vById = useMemo(
     () => new Map(wire.vertices.map((v) => [v.id, v])),
@@ -100,11 +104,20 @@ export default function WireLayer({
         onComponentMouseDown={onComponentMouseDown}
         onHighlightComponent={onHighlightComponent}
       />
+      <Grounds
+        grounds={wire.grounds ?? []}
+        vById={vById}
+        vertexNodeId={vertexNodeId}
+        colorForNode={colorForNode}
+      />
       <HoverPreview
         wire={wire}
         hover={hover}
         selectedTool={selectedTool}
         drawingFromVertexId={drawingFromVertexId}
+        placingGroundFor={placingGroundFor}
+        cursor={cursor}
+        shiftKey={shiftKey}
       />
       <Vertices
         vertices={wire.vertices}

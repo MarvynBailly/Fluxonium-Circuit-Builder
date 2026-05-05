@@ -14,7 +14,20 @@ const sectionHeader = (color, text) => (
 
 function CapacitanceMatrix({ nodes, edges }) {
   const { cells, nodeList } = capacitanceMatrix(nodes, edges);
-  if (nodeList.length === 0) return null;
+  const anyGrounded = nodes.some((n) => n.isGround);
+
+  if (nodeList.length === 0) {
+    return (
+      <section style={{ marginTop: 20 }}>
+        {sectionHeader('var(--text-secondary)', 'CAPACITANCE MATRIX')}
+        <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+          {anyGrounded
+            ? 'Every node is grounded — no dynamical degrees of freedom remain.'
+            : 'No capacitors — capacitance matrix is empty.'}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section style={{ marginTop: 20 }}>
@@ -24,6 +37,11 @@ function CapacitanceMatrix({ nodes, edges }) {
           text={'C_{ij} = \\partial^{2} L / \\partial \\dot{\\phi}_{i}\\, \\partial \\dot{\\phi}_{j}'}
         />
       </div>
+      {anyGrounded && (
+        <div style={{ marginBottom: 8, fontSize: 10, color: 'var(--text-muted)' }}>
+          Grounded nodes (φ̇ = 0) eliminated — this is the dynamical C.
+        </div>
+      )}
       <div style={{ overflowX: 'auto' }}>
         <table style={{ borderCollapse: 'collapse', width: '100%' }}>
           <thead>

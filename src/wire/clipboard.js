@@ -60,6 +60,9 @@ export function serializeSelection(wire, selection) {
     vertices: wire.vertices.filter((v) => vSet.has(v.id)).map((v) => ({ ...v })),
     wires: wire.wires.filter((w) => wSet.has(w.id)).map((w) => ({ ...w })),
     components: wire.components.filter((c) => cSet.has(c.id)).map((c) => ({ ...c })),
+    grounds: (wire.grounds ?? [])
+      .filter((g) => vSet.has(g.vertexId))
+      .map((g) => ({ vertexId: g.vertexId, dx: g.dx ?? 0, dy: g.dy ?? 0 })),
   };
 }
 
@@ -106,6 +109,14 @@ export function pasteSelection(wire, clip, dx, dy) {
     return built;
   });
 
+  let nextG = wire.nextGroundId ?? 0;
+  const newGrounds = (clip.grounds ?? []).map((g) => ({
+    id: `g${nextG++}`,
+    vertexId: vIdMap.get(g.vertexId),
+    dx: g.dx ?? 0,
+    dy: g.dy ?? 0,
+  }));
+
   const selection = [
     ...newVertices.map((v) => ({ kind: 'wireVertex', id: v.id })),
     ...newWires.map((w) => ({ kind: 'wire', id: w.id })),
@@ -118,9 +129,11 @@ export function pasteSelection(wire, clip, dx, dy) {
       vertices: [...wire.vertices, ...newVertices],
       wires: [...wire.wires, ...newWires],
       components: [...wire.components, ...newComponents],
+      grounds: [...(wire.grounds ?? []), ...newGrounds],
       nextVertexId: nextV,
       nextWireId: nextW,
       nextComponentId: nextC,
+      nextGroundId: nextG,
     },
     selection,
   };

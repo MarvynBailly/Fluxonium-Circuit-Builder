@@ -31,7 +31,9 @@ export const EMPTY_WIRE = {
   vertices: [],
   wires: [],
   components: [],
+  grounds: [],
   nextVertexId: 0,
   nextWireId: 0,
   nextComponentId: 0,
+  nextGroundId: 0,
 };

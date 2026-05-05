@@ -1,12 +1,22 @@
 import React from 'react';
 import CircuitSymbol from '../CircuitSymbol.jsx';
-import { COMPONENT_LENGTH } from '../../wire/index.js';
+import { GroundGlyph } from './Grounds.jsx';
+import { COMPONENT_LENGTH, snapGroundOffset } from '../../wire/index.js';
 
 /** Render the hover preview overlays (in-progress wire line, ghost
  *  vertex, ghost component) based on the active tool and hover kind. */
-export default function HoverPreview({ wire, hover, selectedTool, drawingFromVertexId }) {
+export default function HoverPreview({
+  wire,
+  hover,
+  selectedTool,
+  drawingFromVertexId,
+  placingGroundFor = null,
+  cursor = null,
+  shiftKey = false,
+}) {
   const isWireTool = selectedTool === 'wire';
   const isCompTool = selectedTool === 'C' || selectedTool === 'L' || selectedTool === 'JJ';
+  const isGroundTool = selectedTool === 'GND';
 
   let drawingVertex = null;
   if (drawingFromVertexId !== null) {
@@ -78,6 +88,45 @@ export default function HoverPreview({ wire, hover, selectedTool, drawingFromVer
             />
           </g>
         )}
+
+      {/* Ground-tool ghost — anchor stage. Faded ring at the snap
+          point on a vertex or wire, telling the user "click here to
+          start placement". Off-wire/vertex clicks won't place
+          anything, so we suppress the preview there. */}
+      {isGroundTool && placingGroundFor === null && hover && (hover.kind === 'vertex' || hover.kind === 'wire') && target && (
+        <g pointerEvents="none" opacity={0.7}>
+          <circle
+            cx={target.x}
+            cy={target.y}
+            r={6}
+            fill="none"
+            stroke="var(--accent-amber)"
+            strokeWidth={1.5}
+            strokeDasharray="2 2"
+          />
+        </g>
+      )}
+
+      {/* Ground-tool ghost — placement stage. The anchor is set; the
+          cursor's offset (snapped to N/S/E/W unless Shift is held)
+          drives a live preview of where the glyph will land. */}
+      {isGroundTool && placingGroundFor !== null && cursor && (() => {
+        const off = snapGroundOffset(
+          cursor.x - placingGroundFor.x,
+          cursor.y - placingGroundFor.y,
+          shiftKey,
+        );
+        return (
+          <GroundGlyph
+            x={placingGroundFor.x}
+            y={placingGroundFor.y}
+            dx={off.dx}
+            dy={off.dy}
+            color="var(--accent-amber)"
+            opacity={0.7}
+          />
+        );
+      })()}
 
       {/* Component-tool ghost (over a wire = will split + insert; over
           empty space = will spawn standalone). */}

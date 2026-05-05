@@ -8,7 +8,7 @@
  */
 
 import { adjacencyMatrix, capacitanceMatrix, formatSymbolicSum } from '../physics/hamiltonian.js';
-import { COMPONENT_LENGTH } from '../wire/index.js';
+import { COMPONENT_LENGTH, DEFAULT_GROUND_OFFSET } from '../wire/index.js';
 
 /**
  * @param {Array} nodes - analysis-level nodes (electrical nodes)
@@ -73,9 +73,16 @@ export function buildExportPayload(nodes, edges, extra = {}) {
         value: c.value,
         ...(c.userColor ? { color: c.color } : {}),
       })),
+      grounds: (extra.wire.grounds ?? []).map((g) => ({
+        id: g.id,
+        vertex: g.vertexId,
+        dx: g.dx ?? 0,
+        dy: g.dy ?? 0,
+      })),
       next_vertex_id: extra.wire.nextVertexId,
       next_wire_id: extra.wire.nextWireId,
       next_component_id: extra.wire.nextComponentId,
+      next_ground_id: extra.wire.nextGroundId,
     };
 
     if (extra.wireNodes) {
@@ -206,9 +213,11 @@ function convertOldWireGeometry(g) {
     vertices,
     wires: newWires,
     components: newComponents,
+    grounds: [],
     nextVertexId,
     nextWireId,
     nextComponentId,
+    nextGroundId: 0,
   };
 }
 
@@ -245,6 +254,14 @@ export function parseImportPayload(payload) {
     if (isOldFormat) {
       wire = convertOldWireGeometry(g);
     } else {
+      const importedGrounds = (g.grounds || []).map((gr, i) => ({
+        id: gr.id ?? `g${i}`,
+        vertexId: gr.vertex ?? gr.vertexId,
+        // Old exports predate the offset — fall back to the default
+        // (south, one grid cell) so they render sensibly.
+        dx: gr.dx ?? DEFAULT_GROUND_OFFSET.dx,
+        dy: gr.dy ?? DEFAULT_GROUND_OFFSET.dy,
+      }));
       wire = {
         vertices: g.vertices.map((v) => ({ id: v.id, x: v.x, y: v.y })),
         wires: (g.wires || []).map((w) => ({ id: w.id, from: w.from, to: w.to })),
@@ -256,6 +273,7 @@ export function parseImportPayload(payload) {
           value: c.value,
           ...(c.color !== undefined ? { color: c.color, userColor: true } : {}),
         })),
+        grounds: importedGrounds,
         nextVertexId:
           g.next_vertex_id ??
           (g.vertices.length ? Math.max(...g.vertices.map((v) => v.id)) + 1 : 0),
@@ -273,12 +291,42 @@ export function parseImportPayload(payload) {
                 ...g.components.map((c) => parseInt(String(c.id).slice(1), 10) || 0),
               ) + 1
             : 0),
+        nextGroundId:
+          g.next_ground_id ??
+          (importedGrounds.length
+            ? Math.max(
+                ...importedGrounds.map((gr) => parseInt(String(gr.id).slice(1), 10) || 0),
+              ) + 1
+            : 0),
       };
     }
+
+    // Backwards-compat: pre-grounds[] exports stored ground state on
+    // per-node overrides. If the new array is missing, translate any
+    // legacy is_ground flag into a ground on the override's anchor
+    // vertex so old files don't lose their groundings.
+    const overrides = (payload.node_overrides || []).filter((o) => o.anchor != null);
+    if ((wire.grounds?.length ?? 0) === 0) {
+      const legacy = overrides.filter((o) => o.is_ground && o.anchor != null);
+      if (legacy.length > 0) {
+        let next = wire.nextGroundId ?? 0;
+        wire = {
+          ...wire,
+          grounds: legacy.map((o) => ({
+            id: `g${next++}`,
+            vertexId: o.anchor,
+            dx: DEFAULT_GROUND_OFFSET.dx,
+            dy: DEFAULT_GROUND_OFFSET.dy,
+          })),
+          nextGroundId: next,
+        };
+      }
+    }
+
     return {
       kind: 'wire',
       wire,
-      nodeOverrides: (payload.node_overrides || []).filter((o) => o.anchor != null),
+      nodeOverrides: overrides,
       view,
     };
   }

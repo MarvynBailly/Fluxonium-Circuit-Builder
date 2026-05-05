@@ -50,6 +50,7 @@ export default function Toolbar({
   onSelectTool,
   connectFrom,
   drawingFromVertexId,
+  placingGroundFor,
   canUndo,
   canRedo,
   onUndo,
@@ -110,6 +111,16 @@ export default function Toolbar({
         </button>
       ))}
 
+      {isWire && (
+        <button
+          style={toolButtonStyle(selectedTool === 'GND', '#9ca3af')}
+          onClick={() => onSelectTool('GND')}
+          title="Drop a ground marker on a wire — pins that node's φ to a constant"
+        >
+          <span style={{ marginRight: 4 }}>⏚</span> Ground
+        </button>
+      )}
+
       <span style={{ color: 'var(--border)', margin: '0 4px' }}>|</span>
 
       <button
@@ -143,6 +154,16 @@ export default function Toolbar({
       {isWire && (selectedTool === 'C' || selectedTool === 'L' || selectedTool === 'JJ') && (
         <span style={{ fontSize: 12, color: 'var(--accent-amber)' }}>
           Click anywhere on a wire — snaps to ¼, ⅓, ½, ⅔, ¾
+        </span>
+      )}
+      {isWire && selectedTool === 'GND' && placingGroundFor === null && (
+        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+          Click a wire or vertex to set the anchor — click an existing ⏚ to remove it
+        </span>
+      )}
+      {isWire && selectedTool === 'GND' && placingGroundFor !== null && (
+        <span style={{ fontSize: 12, color: 'var(--accent-amber)' }}>
+          Click to place the ⏚ glyph — snaps to N/S/E/W (Shift = free), Esc to cancel
         </span>
       )}
 

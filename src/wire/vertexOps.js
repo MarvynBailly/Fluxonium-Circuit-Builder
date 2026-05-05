@@ -1,5 +1,6 @@
 /** Vertex operations: add, delete (orphan policy), merge, fold-into-wire. */
 
+import { remapGroundsAfterMerge, removeGroundsForVertex } from './groundOps.js';
 import { addWire } from './wireOps.js';
 
 export function addVertex(wire, x, y) {
@@ -48,13 +49,14 @@ export function deleteVertex(wire, vertexId) {
     };
   });
 
-  return {
+  const result = {
     ...wire,
     vertices: newVertices,
     wires,
     components,
     nextVertexId: nextId,
   };
+  return removeGroundsForVertex(result, vertexId);
 }
 
 /**
@@ -91,12 +93,13 @@ export function mergeVertices(wire, fromId, intoId) {
     }))
     .filter((c) => c.from !== c.to);
 
-  return {
+  const merged = {
     ...wire,
     vertices: wire.vertices.filter((v) => v.id !== fromId),
     wires,
     components,
   };
+  return remapGroundsAfterMerge(merged, fromId, intoId);
 }
 
 /** Predicate: would `mergeVertices(wire, fromId, intoId)` lose data? */
@@ -170,7 +173,7 @@ export function mergeVertexIntoWire(wire, vertexId) {
   const b = incident[1].from === vertexId ? incident[1].to : incident[1].from;
   const incidentIds = new Set(incident.map((w) => w.id));
   const newWireId = `w${wire.nextWireId}`;
-  return {
+  const merged = {
     ...wire,
     vertices: wire.vertices.filter((v) => v.id !== vertexId),
     wires: wire.wires
@@ -178,4 +181,6 @@ export function mergeVertexIntoWire(wire, vertexId) {
       .concat([{ id: newWireId, from: a, to: b }]),
     nextWireId: wire.nextWireId + 1,
   };
+  // The folded vertex is gone — drop any ground that was attached to it.
+  return removeGroundsForVertex(merged, vertexId);
 }

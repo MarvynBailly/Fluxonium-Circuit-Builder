@@ -258,7 +258,7 @@ function NodeLabelsPanel({
                       key={n.id}
                       style={{
                         display: 'grid',
-                        gridTemplateColumns: '22px minmax(0, 1fr) auto',
+                        gridTemplateColumns: '22px minmax(0, 1fr) 22px',
                         alignItems: 'center',
                         gap: 6,
                         padding: '2px 4px',
@@ -294,24 +294,20 @@ function NodeLabelsPanel({
                           fontStyle: n.userLabel ? 'normal' : 'italic',
                         }}
                       />
-                      <label
+                      <span
                         style={{
-                          display: 'flex',
+                          display: 'inline-flex',
                           alignItems: 'center',
-                          gap: 4,
+                          justifyContent: 'center',
                           fontSize: 14,
-                          color: 'var(--text-secondary)',
-                          cursor: 'pointer',
+                          color: n.isGround ? 'var(--text-secondary)' : 'transparent',
+                          width: 18,
+                          userSelect: 'none',
                         }}
-                        title="Mark as ground"
+                        title={n.isGround ? 'Grounded — drop the ground marker on the canvas to remove' : ''}
                       >
-                        <input
-                          type="checkbox"
-                          checked={!!n.isGround}
-                          onChange={(e) => onUpdateNode(n.id, { isGround: e.target.checked })}
-                        />
                         ⏚
-                      </label>
+                      </span>
                     </div>
                   );
                 })}

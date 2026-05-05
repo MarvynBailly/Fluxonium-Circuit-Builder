@@ -22,6 +22,10 @@ import { DEFAULT_NODE_COLOR } from './constants.js';
  */
 export function autoDetectNodes(wire, previous = null) {
   const { vertices, wires, components } = wire;
+  const grounds = wire.grounds ?? [];
+  // Vertices that the user has explicitly grounded — every electrical
+  // node containing one of these is treated as static (φ̇ = 0).
+  const groundedVertices = new Set(grounds.map((g) => g.vertexId));
 
   // Track which vertices are incident to at least one wire — these
   // are the "wired" vertices that become φ nodes. The rest are
@@ -97,6 +101,7 @@ export function autoDetectNodes(wire, previous = null) {
       usedLabels.add(label);
     }
     const color = carry?.userColor ? carry.color : DEFAULT_NODE_COLOR;
+    const isGround = vertexIds.some((vid) => groundedVertices.has(vid));
     nodes.push({
       id: nodeId,
       x: cx,
@@ -105,7 +110,7 @@ export function autoDetectNodes(wire, previous = null) {
       userLabel,
       color,
       userColor: !!carry?.userColor,
-      isGround: !!carry?.isGround,
+      isGround,
       vertexIds,
     });
     for (const vid of vertexIds) vertexNode.set(vid, nodeId);
